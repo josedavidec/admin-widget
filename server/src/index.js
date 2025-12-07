@@ -1103,6 +1103,75 @@ app.post('/api/section-settings', async (req, res, next) => {
   }
 })
 
+// Media library endpoints
+app.get('/api/media', async (req, res, next) => {
+  try {
+    const [rows] = await pool.query('SELECT id, file_name, original_name, mime_type, size, url, created_at FROM media_assets ORDER BY created_at DESC')
+    res.json(rows)
+  } catch (err) {
+    next(err)
+  }
+})
+
+app.post('/api/media/upload', upload.single('file'), async (req, res, next) => {
+  try {
+    const user = await validateAuth(req)
+    if (!user) return res.status(401).json({ message: 'No autorizado' })
+
+    if (!req.file) {
+      return res.status(400).json({ message: 'No file uploaded' })
+    }
+
+    const filename = req.file.filename
+    const original = req.file.originalname
+    const mime = req.file.mimetype
+    const size = req.file.size
+    const url = `/uploads/${filename}`
+
+    const [result] = await pool.query(`INSERT INTO media_assets (file_name, original_name, mime_type, size, url, created_by) VALUES (:file_name, :original_name, :mime_type, :size, :url, :created_by)`, {
+      file_name: filename,
+      original_name: original,
+      mime_type: mime,
+      size: size,
+      url: url,
+      created_by: user?.id ?? null,
+    })
+
+    const insertedId = result.insertId
+    const [rows] = await pool.query('SELECT id, file_name, original_name, mime_type, size, url, created_at FROM media_assets WHERE id = :id LIMIT 1', { id: insertedId })
+    res.json(rows[0])
+  } catch (err) {
+    next(err)
+  }
+})
+
+app.delete('/api/media/:id', async (req, res, next) => {
+  try {
+    const user = await validateAuth(req)
+    if (!user) return res.status(401).json({ message: 'No autorizado' })
+
+    const id = Number(req.params.id)
+    if (!id) return res.status(400).json({ message: 'Invalid id' })
+
+    const [rows] = await pool.query('SELECT file_name FROM media_assets WHERE id = :id LIMIT 1', { id })
+    if (!rows || rows.length === 0) return res.status(404).json({ message: 'Asset not found' })
+
+    const fileName = rows[0].file_name
+    // delete DB row first
+    await pool.query('DELETE FROM media_assets WHERE id = :id', { id })
+
+    // attempt to remove file from uploads folder
+    const p = path.join(uploadDir, fileName)
+    fs.unlink(p, (err) => {
+      if (err) console.debug('Could not delete file from disk:', err?.message || err)
+    })
+
+    res.json({ message: 'Deleted' })
+  } catch (err) {
+    next(err)
+  }
+})
+
 // Tasks Endpoints
 app.get('/api/tasks', async (req, res, next) => {
   try {
@@ -1962,6 +2031,20 @@ async function ensureTables() {
       VALUES (1, TRUE, TRUE, TRUE, TRUE, TRUE, TRUE, TRUE)
     `)
   }
+
+  // Create media_assets table to store uploaded assets metadata
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS media_assets (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      file_name VARCHAR(255) NOT NULL,
+      original_name VARCHAR(255) NULL,
+      mime_type VARCHAR(120) NULL,
+      size INT NULL,
+      url VARCHAR(512) NULL,
+      created_by INT NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  `)
 
   // Seed blog posts if empty
   const [blogRows] = await pool.query('SELECT COUNT(*) as count FROM blog_posts')
