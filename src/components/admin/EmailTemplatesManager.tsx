@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import MediaLibrary from './MediaLibrary'
+import QuillEditor from './QuillEditor'
 
 type EmailTemplate = {
   id?: number
@@ -40,26 +41,12 @@ export default function EmailTemplatesManager({
   const [testEmail, setTestEmail] = useState('')
   const [scheduleAt, setScheduleAt] = useState('')
   const [showMedia, setShowMedia] = useState(false)
-  const [QuillComponent, setQuillComponent] = useState<
-    React.ComponentType<{ value?: string; onChange?: (val: string) => void }> | null
-  >(null)
 
   useEffect(() => {
     if (fetchEmailTemplates) void fetchEmailTemplates()
   }, [fetchEmailTemplates])
 
-  useEffect(() => {
-    let mounted = true
-    import('react-quill').then((mod) => {
-      if (!mounted) return
-      setQuillComponent(() => mod.default)
-      // try to load the quill styles if the package is present; ignore failures
-      import('react-quill/dist/quill.snow.css').catch(() => {})
-    }).catch(() => {
-      // react-quill not installed — fallback to contentEditable
-    })
-    return () => { mounted = false }
-  }, [])
+  // QuillEditor is used directly (react-quilljs wrapper)
 
   const handleSave = async () => {
     if (!editing) return
@@ -173,16 +160,9 @@ export default function EmailTemplatesManager({
                   }} className="px-2 py-1 border rounded">Insertar placeholder</button>
                   <button type="button" onClick={() => setShowMedia(true)} className="px-2 py-1 border rounded">Media</button>
                 </div>
-                {QuillComponent ? (
-                  <div>
-                    <QuillComponent value={editing?.body || ''} onChange={(val: string) => setEditing((prev) => ({ ...(prev ?? {}), body: val }))} />
-                  </div>
-                ) : (
-                  <div id="etm-editor" contentEditable={true} className="min-h-[160px] border rounded p-3 bg-white text-sm" onInput={(e) => {
-                    const html = (e.target as HTMLElement).innerHTML
-                    setEditing((prev) => ({ ...(prev ?? {}), body: html }))
-                  }} dangerouslySetInnerHTML={{ __html: editing?.body || '<p></p>' }} />
-                )}
+                <div>
+                  <QuillEditor value={editing?.body || ''} onChange={(val: string) => setEditing((prev) => ({ ...(prev ?? {}), body: val }))} />
+                </div>
                 <div className="text-xs text-gray-500 mt-2">Usa placeholders como <code>{'{{name}}'}</code> o <code>{'{{company}}'}</code></div>
               </div>
 
@@ -196,13 +176,8 @@ export default function EmailTemplatesManager({
       )}
       {showMedia && (
         <MediaLibrary onClose={() => setShowMedia(false)} onSelect={(url) => {
-          // insert image into editor content
-          if (QuillComponent) {
-            setEditing((prev) => ({ ...(prev ?? {}), body: `${prev?.body ?? ''}<img src="${url}" alt=""/>` }))
-          } else {
-            const editor = document.getElementById('etm-editor')
-            if (editor) document.execCommand('insertHTML', false, `<img src="${url}" alt="" />`)
-          }
+          // insert image into editor content (update editing.body)
+          setEditing((prev) => ({ ...(prev ?? {}), body: `${prev?.body ?? ''}<img src="${url}" alt=""/>` }))
           setShowMedia(false)
         }} />
       )}
