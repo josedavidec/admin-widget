@@ -16,7 +16,7 @@ type Props = {
   inline?: boolean
 }
 
-export default function MediaLibrary({ onClose, onSelect }: Props) {
+export default function MediaLibrary({ onClose, onSelect, inline = false }: Props) {
   const [items, setItems] = useState<MediaItem[]>([])
   const [loading, setLoading] = useState(false)
   const [uploading, setUploading] = useState(false)
