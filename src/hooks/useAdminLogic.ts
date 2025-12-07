@@ -115,7 +115,7 @@ export function useAdminLogic() {
     photo: null
   })
   const [editingMemberId, setEditingMemberId] = useState<number | null>(null)
-  const [activeTab, setActiveTab] = useState<'overview' | 'leads' | 'team' | 'tasks' | 'brands' | 'social' | 'blog' | 'emails'>('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'leads' | 'team' | 'tasks' | 'brands' | 'social' | 'blog' | 'emails' | 'media'>('overview')
 
   // Prevent duplicate concurrent fetches (useful in dev where StrictMode can double-invoke effects)
   const inflight = useRef<Set<string>>(new Set())
@@ -126,9 +126,9 @@ export function useAdminLogic() {
     // Define qué tabs tiene permiso de ver cada usuario
     // Super Admin: solo overview y team
     // Regular Admin: respeta section_settings de la BD
-    const sectionSettings = currentUser.sectionSettings || { leads: true, team: true, tasks: true, brands: true, blog: true }
+    const sectionSettings = currentUser.sectionSettings || { leads: true, team: true, tasks: true, brands: true, blog: true, emails: true, media: true }
     
-    const permissions: Record<'overview' | 'leads' | 'team' | 'tasks' | 'brands' | 'blog' | 'social' | 'emails', boolean> = {
+    const permissions: Record<'overview' | 'leads' | 'team' | 'tasks' | 'brands' | 'blog' | 'social' | 'emails' | 'media', boolean> = {
       overview: true,
       leads: currentUser.isSuperAdmin ? false : sectionSettings.leads,
       team: true, // Todos pueden ver team (equipo o administradores)
@@ -137,6 +137,7 @@ export function useAdminLogic() {
       blog: currentUser.isSuperAdmin ? false : sectionSettings.blog,
       social: currentUser.isSuperAdmin ? false : sectionSettings.brands, // Social depende de brands
       emails: currentUser.isSuperAdmin ? false : (sectionSettings.emails ?? true),
+      media: currentUser.isSuperAdmin ? false : (sectionSettings.media ?? true),
     }
 
     // Si el tab actual no está permitido, cambiar al primero permitido

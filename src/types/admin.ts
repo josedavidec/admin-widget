@@ -54,6 +54,8 @@ export type SectionSettings = {
   tasks: boolean
   brands: boolean
   blog: boolean
+  emails?: boolean
+  media?: boolean
 }
 
 export type TaskStatus = 'pending' | 'in_progress' | 'completed'

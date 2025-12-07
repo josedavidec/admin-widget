@@ -10,6 +10,7 @@ import { SectionManager } from '../components/admin/SectionManager'
 import EmailTemplatesManager from '../components/admin/EmailTemplatesManager'
 import { SocialMetricsPanel } from '../components/admin/SocialMetricsPanel'
 import { useTheme } from '../hooks/useTheme'
+import MediaLibrary from '../components/admin/MediaLibrary'
 
 export default function AdminPage() {
   const {
@@ -373,6 +374,16 @@ export default function AdminPage() {
                   >
                     Crear y gestionar admins
                   </span>
+                </button>
+              )}
+              {currentUser?.isSuperAdmin && (
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('media')}
+                  className={`w-full rounded-xl px-4 py-3 text-left text-sm font-semibold transition-colors ${activeTab === 'media' ? 'bg-blue-600 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'}`}
+                >
+                  Media
+                  <span className={`block text-xs font-normal lg:hidden ${activeTab === 'media' ? 'text-white/80' : 'text-gray-500'}`}>Biblioteca de medios</span>
                 </button>
               )}
 

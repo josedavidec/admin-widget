@@ -73,7 +73,7 @@ export function normalizeLead(raw: RawLead): Lead {
 }
 
 function normalizeSectionSettings(raw: unknown): SectionSettings {
-  const defaults: SectionSettings = { leads: true, team: true, tasks: true, brands: true, blog: true }
+  const defaults: SectionSettings = { leads: true, team: true, tasks: true, brands: true, blog: true, emails: true, media: true }
   if (!raw || typeof raw !== 'object') return defaults
 
   const source = raw as Partial<SectionSettings>
@@ -84,6 +84,8 @@ function normalizeSectionSettings(raw: unknown): SectionSettings {
     tasks: typeof source.tasks === 'boolean' ? source.tasks : defaults.tasks,
     brands: typeof source.brands === 'boolean' ? source.brands : defaults.brands,
     blog: typeof source.blog === 'boolean' ? source.blog : defaults.blog,
+    emails: typeof source.emails === 'boolean' ? source.emails : defaults.emails,
+    media: typeof source.media === 'boolean' ? source.media : defaults.media,
   }
 }
 

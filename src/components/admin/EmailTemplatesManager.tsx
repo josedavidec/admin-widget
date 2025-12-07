@@ -135,7 +135,7 @@ export default function EmailTemplatesManager({
               </div>
 
               <div className="mt-3">
-                <div className="prose max-w-none" dangerouslySetInnerHTML={{ __html: t.body || '' }} />
+                <div className="prose max-w-none dark:prose-invert text-gray-900 dark:text-gray-100" dangerouslySetInnerHTML={{ __html: t.body || '' }} />
               </div>
 
               <div className="mt-3 flex gap-2">
@@ -195,7 +195,7 @@ export default function EmailTemplatesManager({
 
                 <div className="mt-4 border-t pt-4">
                   <h5 className="text-sm font-medium mb-2">Vista previa</h5>
-                  <div className="border rounded p-3 bg-white text-sm prose max-w-none" dangerouslySetInnerHTML={{ __html: editing?.body || '<p></p>' }} />
+                  <div className="border rounded p-3 bg-white dark:bg-gray-800 text-sm prose max-w-none dark:prose-invert text-gray-900 dark:text-gray-100 border-gray-200 dark:border-gray-700" dangerouslySetInnerHTML={{ __html: editing?.body || '<p></p>' }} />
                   <div className="text-xs text-gray-500 mt-2">Placeholders detectados: {extractPlaceholders(editing?.body).length === 0 ? '—' : extractPlaceholders(editing?.body).map(p => <span key={p} className="inline-block mr-2 px-2 py-0.5 bg-gray-100 rounded">{p}</span>)}</div>
                 </div>
               </div>
