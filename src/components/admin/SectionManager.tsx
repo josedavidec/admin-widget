@@ -6,6 +6,7 @@ export type Sections = {
   blog: boolean
   emails?: boolean
   social?: boolean
+  media?: boolean
 }
 
 type SectionManagerProps = {
@@ -72,6 +73,13 @@ export function SectionManager({ isSuperAdmin, sections = {
       description: 'Métricas y publicaciones en redes',
       icon: '📣',
       color: 'bg-amber-100 dark:bg-amber-900/30'
+    },
+    {
+      key: 'media' as const,
+      name: 'Media Library',
+      description: 'Gestiona y sube archivos multimedia',
+      icon: '🖼️',
+      color: 'bg-indigo-100 dark:bg-indigo-900/30'
     },
   ]
 

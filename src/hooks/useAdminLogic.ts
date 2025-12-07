@@ -512,6 +512,10 @@ export function useAdminLogic() {
     }
   }
 
+  const handleTeamMemberSetPhotoFile = (file: File) => {
+    setTeamMemberForm((prev) => ({ ...prev, photo: file }))
+  }
+
   const handleEditTeamMember = (member: TeamMember) => {
     setEditingMemberId(member.id)
     setTeamMemberForm({
@@ -1648,6 +1652,7 @@ export function useAdminLogic() {
     handleTeamMemberFieldChange,
     handleTeamMemberCheckboxChange,
     handleTeamMemberPhotoChange,
+    handleTeamMemberSetPhotoFile,
     handleEditTeamMember,
     handleTeamMemberSubmit,
     handleCancelTeamMemberEdit,

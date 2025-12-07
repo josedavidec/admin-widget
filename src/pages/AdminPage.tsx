@@ -123,9 +123,10 @@ export default function AdminPage() {
     brands: true,
     blog: true,
     emails: true,
+    media: true,
   })
   // Merge defaults with server-provided sectionSettings so missing keys default to true
-  const defaultSections = { leads: true, team: true, tasks: true, brands: true, blog: true, emails: true }
+  const defaultSections = { leads: true, team: true, tasks: true, brands: true, blog: true, emails: true, media: true }
   const allowedSections = { ...defaultSections, ...(currentUser?.sectionSettings ?? {}) }
   
   // Form states
@@ -438,6 +439,17 @@ export default function AdminPage() {
                     </button>
                   )}
 
+                  {allowedSections.media && (
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('media')}
+                      className={`w-full rounded-xl px-4 py-3 text-left text-sm font-semibold transition-colors ${activeTab === 'media' ? 'bg-blue-600 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'}`}
+                    >
+                      Media
+                      <span className={`block text-xs font-normal lg:hidden ${activeTab === 'media' ? 'text-white/80' : 'text-gray-500'}`}>Biblioteca de medios</span>
+                    </button>
+                  )}
+
                   {allowedSections.brands && (
                     <button
                       type="button"
@@ -545,11 +557,16 @@ export default function AdminPage() {
                   onFieldChange={handleTeamMemberFieldChange}
                   onCheckboxChange={handleTeamMemberCheckboxChange}
                   onPhotoChange={handleTeamMemberPhotoChange}
+                  onPhotoSelect={handleTeamMemberSetPhotoFile}
                   onSubmit={handleTeamMemberSubmit}
                   onEdit={handleEditTeamMember}
                   onDelete={handleDeleteTeamMember}
                   onCancelEdit={handleCancelTeamMemberEdit}
                 />
+              ) : activeTab === 'media' ? (
+                <div className="p-4">
+                  <MediaLibrary inline onSelect={() => { /* noop for inline library */ }} />
+                </div>
               ) : null
             ) : (
               // Admin/Team member view: Todas las secciones normales

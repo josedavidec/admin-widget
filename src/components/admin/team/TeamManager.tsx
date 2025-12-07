@@ -1,5 +1,6 @@
 import { type TeamMember } from '../../../types/admin'
-import { type ChangeEvent, type FormEvent } from 'react'
+import { type ChangeEvent, type FormEvent, useState } from 'react'
+import MediaLibrary from '../MediaLibrary'
 
 type TeamManagerProps = {
   teamMembers: TeamMember[]
@@ -18,6 +19,7 @@ type TeamManagerProps = {
   onFieldChange: (field: 'name' | 'email' | 'role' | 'password') => (e: ChangeEvent<HTMLInputElement>) => void
   onCheckboxChange: (field: 'isAdmin') => (e: ChangeEvent<HTMLInputElement>) => void
   onPhotoChange: (e: ChangeEvent<HTMLInputElement>) => void
+  onPhotoSelect?: (file: File) => void
   onSubmit: (e: FormEvent<HTMLFormElement>) => void | Promise<void>
   onEdit: (member: TeamMember) => void
   onDelete: (id: number) => void
@@ -34,6 +36,7 @@ export function TeamManager({
   onFieldChange,
   onCheckboxChange,
   onPhotoChange,
+  onPhotoSelect,
   onSubmit,
   onEdit,
   onDelete,
@@ -47,6 +50,8 @@ export function TeamManager({
   const pageDesc = isSuperAdmin 
     ? 'Crea el primer administrador para que la empresa pueda usar la plataforma.' 
     : 'Visualiza tu equipo. Solo admins pueden crear miembros.'
+
+  const [showMedia, setShowMedia] = useState(false)
 
   return (
     <div className="bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 shadow-sm rounded-xl p-5 space-y-5">
@@ -121,13 +126,40 @@ export function TeamManager({
           <label className="text-xs font-semibold text-gray-600 dark:text-gray-400" htmlFor="member-photo">
             Foto (opcional)
           </label>
-          <input
-            id="member-photo"
-            type="file"
-            accept="image/*"
-            onChange={onPhotoChange}
-            className="block w-full text-sm text-gray-500 dark:text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 dark:file:bg-blue-900/30 file:text-blue-700 dark:file:text-blue-400 hover:file:bg-blue-100 dark:hover:file:bg-blue-900/50"
-          />
+          <div className="flex items-center gap-2">
+            <input
+              id="member-photo"
+              type="file"
+              accept="image/*"
+              onChange={onPhotoChange}
+              className="block w-full text-sm text-gray-500 dark:text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 dark:file:bg-blue-900/30 file:text-blue-700 dark:file:text-blue-400 hover:file:bg-blue-100 dark:hover:file:bg-blue-900/50"
+            />
+            <button
+              type="button"
+              onClick={() => setShowMedia(true)}
+              className="inline-flex items-center gap-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 px-3 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+            >
+              Seleccionar desde biblioteca
+            </button>
+          </div>
+          {showMedia && (
+            <MediaLibrary
+              onClose={() => setShowMedia(false)}
+              onSelect={async (url) => {
+                try {
+                  const resp = await fetch(url)
+                  const blob = await resp.blob()
+                  const filename = url.split('/').pop() || 'photo'
+                  const file = new File([blob], filename, { type: blob.type })
+                  onPhotoSelect?.(file)
+                  setShowMedia(false)
+                } catch (err) {
+                  console.error('Failed to fetch selected media', err)
+                  alert('No se pudo seleccionar el archivo')
+                }
+              }}
+            />
+          )}
         </div>
 
         <div className="flex flex-wrap gap-4 items-center">
