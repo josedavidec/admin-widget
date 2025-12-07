@@ -192,6 +192,7 @@ const sectionSettingsSchema = z.object({
   blog: z.boolean().optional().default(true),
   emails: z.boolean().optional().default(true),
   social: z.boolean().optional().default(true),
+  media: z.boolean().optional().default(true),
 })
 
 const taskSchema = z.object({
@@ -262,7 +263,7 @@ async function validateAuth(req) {
 
 async function getSectionSettings() {
   try {
-    const [rows] = await pool.query('SELECT leads, team, tasks, brands, blog, emails, social FROM section_settings WHERE id = 1')
+    const [rows] = await pool.query('SELECT leads, team, tasks, brands, blog, emails, social, media FROM section_settings WHERE id = 1')
     if (rows.length > 0) {
       return {
         leads: Boolean(rows[0].leads),
@@ -272,11 +273,12 @@ async function getSectionSettings() {
         blog: Boolean(rows[0].blog),
         emails: Boolean(rows[0].emails),
         social: Boolean(rows[0].social),
+        media: Boolean(rows[0].media),
       }
     }
-    return { leads: true, team: true, tasks: true, brands: true, blog: true, emails: true, social: true }
+    return { leads: true, team: true, tasks: true, brands: true, blog: true, emails: true, social: true, media: true }
   } catch (error) {
-    return { leads: true, team: true, tasks: true, brands: true, blog: true, emails: true, social: true }
+    return { leads: true, team: true, tasks: true, brands: true, blog: true, emails: true, social: true, media: true }
   }
 }
 
@@ -1053,6 +1055,7 @@ app.get('/api/section-settings', async (req, res, next) => {
         blog: true,
         emails: true,
         social: true,
+        media: true,
       })
     }
 
@@ -1065,6 +1068,7 @@ app.get('/api/section-settings', async (req, res, next) => {
       blog: Boolean(settings.blog),
       emails: Boolean(settings.emails),
       social: Boolean(settings.social),
+      media: Boolean(settings.media),
     })
   } catch (error) {
     next(error)
@@ -1082,7 +1086,7 @@ app.post('/api/section-settings', async (req, res, next) => {
 
     const [result] = await pool.query(`
         UPDATE section_settings 
-        SET leads = :leads, team = :team, tasks = :tasks, brands = :brands, blog = :blog, emails = :emails, social = :social
+        SET leads = :leads, team = :team, tasks = :tasks, brands = :brands, blog = :blog, emails = :emails, social = :social, media = :media
         WHERE id = 1
     `, {
       leads: Boolean(payload.leads),
@@ -1092,6 +1096,7 @@ app.post('/api/section-settings', async (req, res, next) => {
         blog: Boolean(payload.blog),
         emails: Boolean(payload.emails),
         social: Boolean(payload.social),
+        media: Boolean(payload.media),
     })
 
     return res.json({ 
@@ -2000,6 +2005,7 @@ async function ensureTables() {
       blog BOOLEAN DEFAULT TRUE,
       emails BOOLEAN DEFAULT TRUE,
       social BOOLEAN DEFAULT TRUE,
+      media BOOLEAN DEFAULT TRUE,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
   `)
@@ -2008,6 +2014,7 @@ async function ensureTables() {
   try {
     await pool.query(`ALTER TABLE section_settings ADD COLUMN IF NOT EXISTS emails BOOLEAN DEFAULT TRUE`)
     await pool.query(`ALTER TABLE section_settings ADD COLUMN IF NOT EXISTS social BOOLEAN DEFAULT TRUE`)
+    await pool.query(`ALTER TABLE section_settings ADD COLUMN IF NOT EXISTS media BOOLEAN DEFAULT TRUE`)
   } catch (err) {
     // Ignore - some MySQL versions might not support IF NOT EXISTS on ADD COLUMN
     try {
@@ -2021,14 +2028,19 @@ async function ensureTables() {
     } catch (e) {
       console.debug('Could not add social column to section_settings:', e?.message || e)
     }
+    try {
+      await pool.query(`ALTER TABLE section_settings ADD COLUMN media BOOLEAN DEFAULT TRUE`)
+    } catch (e) {
+      console.debug('Could not add media column to section_settings:', e?.message || e)
+    }
   }
 
   // Initialize section_settings if empty
   const [sectionRows] = await pool.query('SELECT COUNT(*) as count FROM section_settings')
   if (sectionRows[0].count === 0) {
     await pool.query(`
-      INSERT INTO section_settings (id, leads, team, tasks, brands, blog, emails, social)
-      VALUES (1, TRUE, TRUE, TRUE, TRUE, TRUE, TRUE, TRUE)
+      INSERT INTO section_settings (id, leads, team, tasks, brands, blog, emails, social, media)
+      VALUES (1, TRUE, TRUE, TRUE, TRUE, TRUE, TRUE, TRUE, TRUE)
     `)
   }
 
