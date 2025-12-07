@@ -1,0 +1,67 @@
+
+networks:
+  default:
+    driver: bridge
+  proxy:
+    external: true
+    name: proxy
+
+services:
+  web:
+    container_name: plantilla-web
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - server/.env
+    environment:
+      - VITE_API_BASE=/api
+    networks:
+      - default
+      - proxy
+    depends_on:
+      - api
+    restart: always
+
+  api:
+    container_name: plantilla-api
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    env_file:
+      - server/.env
+    environment:
+      - NODE_ENV=production
+      - DB_HOST=db
+    networks:
+      - default
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: always
+    volumes:
+      - ./server/uploads:/app/uploads
+
+  db:
+    container_name: plantilla-db
+    image: mysql:8.4
+    restart: always
+    env_file:
+      - server/.env
+    environment:
+      - MYSQL_ROOT_PASSWORD=${DB_ROOT_PASSWORD}
+      - MYSQL_DATABASE=${DB_NAME}
+      - MYSQL_USER=${DB_USER}
+      - MYSQL_PASSWORD=${DB_PASSWORD}
+    networks:
+      - default
+    volumes:
+      - db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  db_data:

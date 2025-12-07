@@ -1,0 +1,348 @@
+{
+  "home": "Inicio",
+  "about": "Sobre Nosotros",
+  "portfolio": "Portafolio",
+  "contact": "Contáctanos",
+  "blog": "Blog",
+  "hero": {
+        "scroll": "NUESTRA EXPERIENCIA"
+    },
+  "whyUs": {
+    "title": "¿Por qué elegirnos?",
+    "description": "En la <1>Agencia Ethan Comunicaciones</1> entendemos los retos de las marcas modernas. Nos convertimos en tu aliado estratégico para potenciar tu presencia digital con ideas creativas, innovación constante y estrategias que conectan con tu público.",
+    "cta": {
+      "label": "Hablemos de tu marca",
+      "subLabel": "Agenda una consultoría sin costo"
+    }
+  },
+  "brochure": {
+    "seo": {
+      "title": "Brochure y Servicios",
+      "description": "Conoce nuestros servicios y equipo. Impulsamos tu presencia digital con estrategia, diseño y producción audiovisual.",
+      "keywords": "servicios, equipo, brochure, marketing, diseño, video, web, Ethan Comunicaciones"
+    },
+    "header": {
+      "agencyName": "AGENCIA ETHAN COMUNICACIONES",
+      "title": {
+        "line1": "Impulsamos tu",
+        "line2": "presencia",
+        "line3": "digital con estrategia."
+      },
+      "cta": "Contrata una asesoría",
+      "downloadPdf": "Descargar PDF"
+    },
+    "about": {
+      "title": "Quiénes somos",
+      "description": "La <1>Agencia Ethan Comunicaciones</1> cuenta con amplia trayectoria, un equipo humano calificado y experiencia en el mercado de las comunicaciones y los medios. Con domicilio en la ciudad de Itagüí, Antioquia, tenemos altas expectativas de ser una de las agencias líderes en comunicaciones en el Valle de Aburrá. Nos caracterizamos por facilitar los procesos de nuestras marcas aliadas para aportar al cumplimiento de sus objetivos comerciales y digitales en el mercado."
+    },
+    "team": {
+      "title": "Equipo",
+      "members": {
+        "camilo": {
+          "role": "Director General",
+          "bio": "Amante de las comunicaciones, la publicidad y el diseño. Líder por naturaleza y convencido de que a la gente buena le TIENEN que pasar cosas buenas."
+        },
+        "jhonathan": {
+          "role": "Subdirector General",
+          "bio": "Apasionado por los proyectos audiovisuales y estratégicos. Amplia experiencia en preproducción, producción y postproducción de contenidos audiovisuales y streaming."
+        },
+        "jose": {
+          "role": "Realizador Audiovisual",
+          "bio": "Apasionado por el mundo audiovisual. Convencido de que se pueden contar grandes historias a través del lente."
+        },
+        "sara": {
+          "role": "Comunicadora Social y Especialista en Mercadeo",
+          "bio": "Apasionada por el ecosistema digital, el mercadeo y el branding."
+        }
+      }
+    },
+    "plansBanner": {
+      "subtitle": "Planes estratégicos",
+      "title": "Elige un plan que haga visible tu marca",
+      "ctaQuote": "Solicitar cotización",
+      "ctaServices": "Ver servicios"
+    },
+    "services": {
+      "title": "Nuestros servicios",
+      "branding": {
+        "title": "Diseño Gráfico y Branding",
+        "badge": "Plan",
+        "items": [
+          "Concepto creativo",
+          "Creación de logo",
+          "Manual corporativo",
+          "Portadas para redes",
+          "Creación de piezas publicitarias (medios digitales e impresos)"
+        ]
+      },
+      "audiovisual": {
+        "title": "Producción Audiovisual",
+        "items": [
+          "Producción de videos: comerciales, videoclips, reels",
+          "Video aéreo",
+          "Edición",
+          "Animación 2D y 3D"
+        ]
+      },
+      "photography": {
+        "title": "Fotografía profesional",
+        "birthday": {
+          "title": "Cumpleaños o evento",
+          "price": "$750.000",
+          "badge": "Paquete",
+          "items": [
+            "30 fotografías digitales",
+            "Video de cinco minutos",
+            "Acompañamiento de videógrafo y fotógrafo",
+            "Sesión de cuatro horas"
+          ]
+        },
+        "product": {
+          "title": "Fotografía producto",
+          "price": "$900.000",
+          "badge": "Paquete",
+          "items": [
+            "40 fotografías digitales",
+            "Edición",
+            "Sesión de tres horas"
+          ]
+        },
+        "wedding": {
+          "title": "Fotografía boda",
+          "price": "$2.000.000",
+          "badge": "Paquete",
+          "items": [
+            "40 fotografías digitales",
+            "Video de cinco minutos",
+            "Acompañamiento de videógrafo y fotógrafo"
+          ]
+        }
+      },
+      "streaming": {
+        "title": "Servicio de transmisiones (Sonic)",
+        "subtitle": "Transmisión en directo",
+        "items": [
+          "Transmisión a tres cámaras Full HD a través de plataformas digitales",
+          "2 camarógrafos, 1 máster, 1 coordinador de cámaras y 1 sonidista"
+        ],
+        "pricing": {
+          "1h": "1 hora",
+          "2h": "2 horas",
+          "3h": "3 horas"
+        }
+      },
+      "web": {
+        "title": "Desarrollo de apps y páginas web",
+        "plans": [
+          {
+            "id": "web",
+            "label": "Página Web",
+            "price": "$2'100.000",
+            "features": [
+              "Dominio y Hosting",
+              "Posicionamiento en Google",
+              "Formulario de contacto"
+            ]
+          },
+          {
+            "id": "ecommerce",
+            "label": "Tienda virtual",
+            "price": "$3'500.000",
+            "features": [
+              "Incluye paquete Página Web",
+              "Pagos con tarjetas y PayPal",
+              "Creación de 60 productos",
+              "Carrito de compras",
+              "App administrativa móvil"
+            ]
+          },
+          {
+            "id": "pro",
+            "label": "Tienda Pro",
+            "price": "Bajo cotización",
+            "features": [
+              "Todo lo de la Tienda virtual",
+              "App para Android",
+              "Posicionamiento avanzado",
+              "Pagos en línea"
+            ]
+          }
+        ]
+      },
+      "ads": {
+        "title": "Pauta Digital y Publicidad",
+        "description": "Pauta Digital — Bajo cotización: incremento de seguidores, visualizaciones y posicionamiento mediante influenciadores, medios digitales e impresos."
+      },
+      "outdoor": {
+        "title": "Publicidad exterior",
+        "plans": [
+          {
+            "id": "carro-valla",
+            "label": "Carro valla",
+            "prices": [
+              {
+                "label": "Impresión de lonas (2 unidades)",
+                "value": "$480.000"
+              },
+              {
+                "label": "Servicio por 8 horas",
+                "value": "$450.000"
+              }
+            ]
+          },
+          {
+            "id": "moto-valla",
+            "label": "Moto valla",
+            "prices": [
+              {
+                "label": "Impresión de lonas (2 unidades)",
+                "value": "$280.000"
+              },
+              {
+                "label": "Servicio por 8 horas",
+                "value": "$350.000"
+              }
+            ]
+          },
+          {
+            "id": "perifoneo-volanteo",
+            "label": "Perifoneo y volanteo",
+            "prices": [
+              {
+                "label": "Jornada diaria",
+                "value": "$70.000"
+              }
+            ]
+          },
+          {
+            "id": "popman",
+            "label": "Popman",
+            "prices": [
+              {
+                "label": "Paquete completo (6 horas · Valla publicitaria · 1000 volantes)",
+                "value": "$480.000"
+              }
+            ]
+          }
+        ]
+      },
+      "sound": {
+        "title": "Alquiler de sonido e iluminación",
+        "description1": "Dos bafles · Consola de audio · 2 micrófonos (alámbricos o inalámbricos) · Acompaña un operador de sonido — $350.000 IVA incluido (por cuatro horas).",
+        "description2": "También ofrecemos carpas, tarimas, pantalla LED y mayor vatios de sonido — bajo cotización."
+      },
+      "consulting": {
+        "title": "Asesorías en Mercadeo",
+        "description": "Bajo cotización: auditoría en redes, análisis de activos digitales, evaluación de la estrategia actual y plan de acción para potencializar tu marca en ventas. Incluye evaluación de propuesta de valor y análisis del público objetivo."
+      }
+    },
+    "contact": {
+      "title": "Hablemos de rentabilidad",
+      "whatsapp": {
+        "subtitle": "WhatsApp directo",
+        "text": "Respuesta rápida. Chatea ahora.",
+        "button": "Abrir chat"
+      },
+      "scheduling": {
+        "helper": "Elige la mejor forma de agendar",
+        "options": {
+          "whatsapp": {
+            "title": "WhatsApp inmediato",
+            "description": "Resolvemos dudas y coordinamos detalles en minutos.",
+            "action": "Abrir WhatsApp"
+          },
+          "calendar": {
+            "title": "Reservar en Google Calendar",
+            "description": "Escoge la fecha y hora que más te convenga.",
+            "action": "Abrir calendario"
+          }
+        }
+      },
+      "info": {
+        "title": "Agencia Ethan Comunicaciones",
+        "subtitle": "Hablemos de tu proyecto y presupuesto",
+        "locationLabel": "Ubicación",
+        "location": "Itagüí, Antioquia",
+        "emailLabel": "Email",
+        "phoneLabel": "Teléfono"
+      },
+      "metrics": [
+        {
+          "label": "Tiempo promedio de respuesta",
+          "value": "< 24h"
+        },
+        {
+          "label": "Clientes activos",
+          "value": "+120"
+        }
+      ],
+      "form": {
+        "name": "Nombre",
+        "email": "Email",
+        "phone": "Celular (ej. +57320...)",
+        "company": "Empresa (opcional)",
+        "companyPlaceholder": "Nombre de tu empresa o marca",
+        "projectLabel": "¿Qué tipo de proyecto necesitas?",
+        "project": {
+          "web": "Página Web",
+          "ecommerce": "Tienda Virtual",
+          "video": "Producción Audiovisual",
+          "branding": "Branding / Diseño",
+          "other": "Otro"
+        },
+        "budget": {
+          "label": "¿Cuál es tu rango de inversión estimado?",
+          "options": {
+            "starter": "Hasta $5M COP",
+            "growth": "$5M - $15M COP",
+            "scale": "Más de $15M COP",
+            "custom": "Necesito una propuesta personalizada"
+          }
+        },
+        "timeline": {
+          "label": "¿Para cuándo necesitas ver resultados?",
+          "options": {
+            "soon": "En menos de un mes",
+            "quarter": "Entre 1 y 3 meses",
+            "later": "Estoy explorando opciones"
+          }
+        },
+        "referral": {
+          "label": "¿Cómo nos conociste?",
+          "placeholder": "Instagram, recomendación, Google..."
+        },
+        "preference": {
+          "label": "¿Cómo prefieres que te contactemos?",
+          "email": "Correo electrónico",
+          "whatsapp": "WhatsApp",
+          "call": "Llamada telefónica"
+        },
+        "message": "Cuéntanos tu proyecto",
+        "messagePlaceholder": "Incluye objetivos, plazos, estado actual...",
+        "submit": "Enviar",
+        "sending": "Enviando...",
+        "whatsappHint": "También escríbenos por WhatsApp",
+        "privacy": "Protegemos tu información. Jamás haremos spam.",
+        "honeypot": "Si ves este campo, déjalo vacío",
+        "success": "Mensaje enviado correctamente. Te contactaremos pronto.",
+        "error": "Error al enviar el mensaje. Intenta más tarde.",
+        "connectionError": "Error de conexión. Intenta más tarde.",
+        "validation": {
+          "general": "Revisa la información resaltada para continuar.",
+          "name": "Ingresa tu nombre completo.",
+          "email": "Añade un correo electrónico válido.",
+          "phone": "Escribe un número de contacto válido.",
+          "budget": "Selecciona un rango de inversión.",
+          "timeline": "Indícanos una urgencia aproximada.",
+          "message": "Cuéntanos un poco más sobre tu proyecto.",
+          "contactPreference": "Selecciona tu canal de contacto preferido."
+        }
+      }
+    }
+  },
+  "notFound": {
+    "title": "Página no encontrada",
+    "description": "Lo sentimos, la página que estás buscando no existe o ha sido movida.",
+    "button": "Volver al inicio"
+  }
+}

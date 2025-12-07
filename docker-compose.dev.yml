@@ -1,0 +1,74 @@
+services:
+  web:
+    container_name: plantilla-web-dev
+    image: node:20-alpine
+    working_dir: /app
+    # Instala dependencias y ejecuta el servidor de desarrollo exponiendo el host
+    command: sh -c "npm install --legacy-peer-deps && npm run dev -- --host"
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_TARGET=http://api:4000
+      - CHOKIDAR_USEPOLLING=true
+    volumes:
+      - .:/app
+      - /app/node_modules
+    depends_on:
+      - api
+    networks:
+      - dev-network
+    tty: true
+    stdin_open: true
+
+  api:
+    container_name: plantilla-api-dev
+    image: node:20-alpine
+    working_dir: /app
+    # Instala dependencias y ejecuta el servidor en modo watch
+    command: sh -c "npm install && node --watch src/index.js"
+    ports:
+      - "4000:4000"
+    env_file:
+      - server/.env
+    environment:
+      - NODE_ENV=development
+      - DB_HOST=db
+    volumes:
+      - ./server:/app
+      - /app/node_modules
+      - ./server/uploads:/app/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - dev-network
+
+  db:
+    container_name: plantilla-db-dev
+    image: mysql:8.4
+    ports:
+      - "3306:3306"
+    restart: always
+    env_file:
+      - server/.env
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${DB_NAME}
+      MYSQL_USER: ${DB_USER}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - db_data_dev:/var/lib/mysql
+    networks:
+      - dev-network
+
+networks:
+  dev-network:
+    driver: bridge
+
+volumes:
+  db_data_dev:

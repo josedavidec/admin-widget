@@ -1,0 +1,348 @@
+{
+  "home": "Home",
+  "about": "About Us",
+  "portfolio": "Portfolio",
+  "contact": "Contact",
+  "blog": "Blog",
+  "hero": {
+    "scroll": "OUR EXPERIENCE"
+  },
+  "whyUs": {
+    "title": "Why Choose Us?",
+    "description": "At the <1>Agencia Ethan Comunicaciones</1>, we understand the challenges of modern brands. We become your strategic partner to boost your digital presence with creative ideas, constant innovation, and strategies that connect with your audience.",
+    "cta": {
+      "label": "Let's talk about your brand",
+      "subLabel": "Book a free consultation"
+    }
+  },
+  "brochure": {
+    "seo": {
+      "title": "Brochure and Services",
+      "description": "Discover our services and team. We boost your digital presence with strategy, design, and audiovisual production.",
+      "keywords": "services, team, brochure, marketing, design, video, web, Ethan Comunicaciones"
+    },
+    "header": {
+      "agencyName": "ETHAN COMMUNICATIONS AGENCY",
+      "title": {
+        "line1": "We boost your",
+        "line2": "digital",
+        "line3": "presence with strategy."
+      },
+      "cta": "Hire a consultation",
+      "downloadPdf": "Download PDF"
+    },
+    "about": {
+      "title": "Who we are",
+      "description": "<1>Ethan Communications Agency</1> has extensive experience, a qualified human team, and expertise in the communications and media market. Based in Itagüí, Antioquia, we have high expectations of being one of the leading communications agencies in the Aburrá Valley. We are characterized by facilitating the processes of our allied brands to contribute to the fulfillment of their commercial and digital objectives in the market."
+    },
+    "team": {
+      "title": "Team",
+      "members": {
+        "camilo": {
+          "role": "General Director",
+          "bio": "Lover of communications, advertising, and design. Leader by nature and convinced that good things MUST happen to good people."
+        },
+        "jhonathan": {
+          "role": "Deputy General Director",
+          "bio": "Passionate about audiovisual and strategic projects. Extensive experience in pre-production, production, and post-production of audiovisual content and streaming."
+        },
+        "jose": {
+          "role": "Audiovisual Producer",
+          "bio": "Passionate about the audiovisual world. Convinced that great stories can be told through the lens."
+        },
+        "sara": {
+          "role": "Social Communicator and Marketing Specialist",
+          "bio": "Passionate about the digital ecosystem, marketing, and branding."
+        }
+      }
+    },
+    "plansBanner": {
+      "subtitle": "Strategic Plans",
+      "title": "Choose a plan that makes your brand visible",
+      "ctaQuote": "Request a quote",
+      "ctaServices": "View services"
+    },
+    "services": {
+      "title": "Our Services",
+      "branding": {
+        "title": "Graphic Design and Branding",
+        "badge": "Plan",
+        "items": [
+          "Creative concept",
+          "Logo creation",
+          "Corporate manual",
+          "Social media covers",
+          "Creation of advertising pieces (digital and print media)"
+        ]
+      },
+      "audiovisual": {
+        "title": "Audiovisual Production",
+        "items": [
+          "Video production: commercials, music videos, reels",
+          "Aerial video",
+          "Editing",
+          "2D and 3D Animation"
+        ]
+      },
+      "photography": {
+        "title": "Professional Photography",
+        "birthday": {
+          "title": "Birthday or event",
+          "price": "$750,000",
+          "badge": "Package",
+          "items": [
+            "30 digital photos",
+            "Five-minute video",
+            "Videographer and photographer accompaniment",
+            "Four-hour session"
+          ]
+        },
+        "product": {
+          "title": "Product Photography",
+          "price": "$900,000",
+          "badge": "Package",
+          "items": [
+            "40 digital photos",
+            "Editing",
+            "Three-hour session"
+          ]
+        },
+        "wedding": {
+          "title": "Wedding Photography",
+          "price": "$2,000,000",
+          "badge": "Package",
+          "items": [
+            "40 digital photos",
+            "Five-minute video",
+            "Videographer and photographer accompaniment"
+          ]
+        }
+      },
+      "streaming": {
+        "title": "Streaming Service (Sonic)",
+        "subtitle": "Live Streaming",
+        "items": [
+          "Transmission with three Full HD cameras through digital platforms",
+          "2 cameramen, 1 master, 1 camera coordinator, and 1 sound engineer"
+        ],
+        "pricing": {
+          "1h": "1 hour",
+          "2h": "2 hours",
+          "3h": "3 hours"
+        }
+      },
+      "web": {
+        "title": "App and Web Development",
+        "plans": [
+          {
+            "id": "web",
+            "label": "Web Page",
+            "price": "$2,100,000",
+            "features": [
+              "Domain and Hosting",
+              "Google positioning",
+              "Contact form"
+            ]
+          },
+          {
+            "id": "ecommerce",
+            "label": "Virtual Store",
+            "price": "$3,500,000",
+            "features": [
+              "Includes Web Page package",
+              "Card and PayPal payments",
+              "Creation of 60 products",
+              "Shopping cart",
+              "Mobile admin app"
+            ]
+          },
+          {
+            "id": "pro",
+            "label": "Pro Store",
+            "price": "Upon quote",
+            "features": [
+              "Everything in the Virtual Store",
+              "Android app",
+              "Advanced positioning",
+              "Online payments"
+            ]
+          }
+        ]
+      },
+      "ads": {
+        "title": "Digital Advertising",
+        "description": "Digital Advertising — Upon quote: increase in followers, views, and positioning through influencers, digital, and print media."
+      },
+      "outdoor": {
+        "title": "Outdoor Advertising",
+        "plans": [
+          {
+            "id": "billboard-truck",
+            "label": "Billboard truck",
+            "prices": [
+              {
+                "label": "Banner printing (2 units)",
+                "value": "$480,000"
+              },
+              {
+                "label": "Service for 8 hours",
+                "value": "$450,000"
+              }
+            ]
+          },
+          {
+            "id": "billboard-motorcycle",
+            "label": "Billboard motorcycle",
+            "prices": [
+              {
+                "label": "Banner printing (2 units)",
+                "value": "$280,000"
+              },
+              {
+                "label": "Service for 8 hours",
+                "value": "$350,000"
+              }
+            ]
+          },
+          {
+            "id": "periphone",
+            "label": "Periphone and flyer distribution",
+            "prices": [
+              {
+                "label": "Daily rate",
+                "value": "$70,000"
+              }
+            ]
+          },
+          {
+            "id": "popman",
+            "label": "Popman",
+            "prices": [
+              {
+                "label": "Full package (6 hours · Advertising billboard · 1000 flyers)",
+                "value": "$480,000"
+              }
+            ]
+          }
+        ]
+      },
+      "sound": {
+        "title": "Sound and Lighting Rental",
+        "description1": "Two speakers · Audio console · 2 microphones (wired or wireless) · Accompanied by a sound operator — $350,000 VAT included (for four hours).",
+        "description2": "We also offer tents, stages, LED screens, and higher sound wattage — upon quote."
+      },
+      "consulting": {
+        "title": "Marketing Consulting",
+        "description": "Upon quote: social media audit, digital asset analysis, evaluation of current strategy, and action plan to boost your brand in sales. Includes value proposition evaluation and target audience analysis."
+      }
+    },
+    "contact": {
+      "title": "Let's talk profitability",
+      "whatsapp": {
+        "subtitle": "Direct WhatsApp",
+        "text": "Fast response. Chat now.",
+        "button": "Open chat"
+      },
+      "scheduling": {
+        "helper": "Pick the best way to schedule",
+        "options": {
+          "whatsapp": {
+            "title": "Instant WhatsApp",
+            "description": "We answer questions and coordinate details within minutes.",
+            "action": "Open WhatsApp"
+          },
+          "calendar": {
+            "title": "Book via Google Calendar",
+            "description": "Choose the date and time that fits your agenda.",
+            "action": "Open calendar"
+          }
+        }
+      },
+      "info": {
+        "title": "Ethan Communications Agency",
+        "subtitle": "Let's talk about your project and budget",
+        "locationLabel": "Location",
+        "location": "Itagüí, Antioquia",
+        "emailLabel": "Email",
+        "phoneLabel": "Phone"
+      },
+      "metrics": [
+        {
+          "label": "Average response time",
+          "value": "< 24h"
+        },
+        {
+          "label": "Active clients",
+          "value": "+120"
+        }
+      ],
+      "form": {
+        "name": "Name",
+        "email": "Email",
+        "phone": "Mobile (e.g. +57320...)",
+        "company": "Company (optional)",
+        "companyPlaceholder": "Your company or brand name",
+        "projectLabel": "What type of project do you need?",
+        "project": {
+          "web": "Web Page",
+          "ecommerce": "Virtual Store",
+          "video": "Audiovisual Production",
+          "branding": "Branding / Design",
+          "other": "Other"
+        },
+        "budget": {
+          "label": "What is your estimated budget?",
+          "options": {
+            "starter": "Up to $5M COP",
+            "growth": "$5M - $15M COP",
+            "scale": "More than $15M COP",
+            "custom": "I need a tailored proposal"
+          }
+        },
+        "timeline": {
+          "label": "When would you like to see results?",
+          "options": {
+            "soon": "Within the next month",
+            "quarter": "Within 1 to 3 months",
+            "later": "I'm exploring options"
+          }
+        },
+        "referral": {
+          "label": "How did you find us?",
+          "placeholder": "Instagram, referral, Google..."
+        },
+        "preference": {
+          "label": "How should we contact you?",
+          "email": "Email",
+          "whatsapp": "WhatsApp",
+          "call": "Phone call"
+        },
+        "message": "Tell us about your project",
+        "messagePlaceholder": "Share goals, timelines, current status...",
+        "submit": "Send",
+        "sending": "Sending...",
+        "whatsappHint": "You can also reach us via WhatsApp",
+        "privacy": "We safeguard your information. No spam, ever.",
+        "honeypot": "If you see this field, leave it blank",
+        "success": "Message sent successfully. We'll contact you soon.",
+        "error": "Error sending the message. Try again later.",
+        "connectionError": "Connection error. Try again later.",
+        "validation": {
+          "general": "Review the highlighted information to continue.",
+          "name": "Please enter your full name.",
+          "email": "Add a valid email address.",
+          "phone": "Provide a valid phone number.",
+          "budget": "Choose an approximate budget range.",
+          "timeline": "Let us know your expected timing.",
+          "message": "Share a bit more about your project.",
+          "contactPreference": "Select your preferred contact channel."
+        }
+      }
+    }
+  },
+  "notFound": {
+    "title": "Page Not Found",
+    "description": "Sorry, the page you are looking for does not exist or has been moved.",
+    "button": "Back to Home"
+  }
+}

@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://agenciaethancomunicaciones.com/sitemap.xml
