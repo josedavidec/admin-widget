@@ -97,6 +97,7 @@ export function TeamManager({
               onChange={onFieldChange('role')}
               className="rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 dark:focus:ring-blue-800"
               placeholder="Ej. Ejecutivo comercial"
+              autoComplete="organization-role"
             />
           </div>
           <div className="flex flex-col gap-1">
@@ -110,6 +111,8 @@ export function TeamManager({
               onChange={onFieldChange('password')}
               className="rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 dark:focus:ring-blue-800"
               placeholder={editingMemberId ? 'Dejar en blanco para no cambiar' : 'Mínimo 6 caracteres'}
+              autoComplete={editingMemberId ? 'current-password' : 'new-password'}
+              minLength={editingMemberId ? undefined : 6}
             />
           </div>
         </div>
