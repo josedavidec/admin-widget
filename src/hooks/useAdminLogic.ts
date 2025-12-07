@@ -49,8 +49,37 @@ export function useAdminLogic() {
   const [searchTerm, setSearchTerm] = useState('')
   const [activeLeadId, setActiveLeadId] = useState<number | null>(null)
   const [noteDraft, setNoteDraft] = useState('')
-  const [viewMode, setViewMode] = useState<ViewMode>('table')
-  const [taskViewMode, setTaskViewMode] = useState<'list' | 'board' | 'calendar'>('list')
+  const [viewMode, _setViewMode] = useState<ViewMode>(() => {
+    try {
+      const saved = typeof window !== 'undefined' ? localStorage.getItem('admin_leads_view_mode') : null
+      return (saved as ViewMode) || 'board'
+    } catch (err) {
+      console.error('Failed to read admin_view_mode from localStorage:', err)
+      return 'board'
+    }
+  })
+
+  const setViewMode = (mode: ViewMode) => {
+    _setViewMode(mode)
+    try {
+      if (typeof window !== 'undefined') localStorage.setItem('admin_leads_view_mode', mode)
+    } catch {}
+  }
+  const [taskViewMode, _setTaskViewMode] = useState<'list' | 'board' | 'calendar'>(() => {
+    try {
+      const saved = typeof window !== 'undefined' ? localStorage.getItem('admin_task_view_mode') : null
+      return (saved as 'list' | 'board' | 'calendar') || 'list'
+    } catch {
+      return 'list'
+    }
+  })
+
+  const setTaskViewMode = (mode: 'list' | 'board' | 'calendar') => {
+    _setTaskViewMode(mode)
+    try {
+      if (typeof window !== 'undefined') localStorage.setItem('admin_task_view_mode', mode)
+    } catch {}
+  }
   const [taskMonthFilter, setTaskMonthFilter] = useState<string>(new Date().toISOString().slice(0, 7))
   const [teamMemberForm, setTeamMemberForm] = useState<{
     name: string
