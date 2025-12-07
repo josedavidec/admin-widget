@@ -21,12 +21,26 @@ import {
   formatDate,
 } from '../utils/adminUtils'
 
+type EmailTemplate = {
+  id?: number
+  name: string
+  subject?: string
+  body?: string
+  variables?: Record<string, unknown>
+  json_schema?: unknown
+  created_by?: number
+  created_at?: string
+  updated_at?: string
+}
+
 export function useAdminLogic() {
   const [leads, setLeads] = useState<Lead[]>([])
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([])
   const [tasks, setTasks] = useState<Task[]>([])
   const [brands, setBrands] = useState<Brand[]>([])
   const [blogPosts, setBlogPosts] = useState<BlogPost[]>([])
+  const [emailTemplates, setEmailTemplates] = useState<EmailTemplate[]>([])
+  const [emailLoading, setEmailLoading] = useState(false)
   const [loading, setLoading] = useState(false)
   const [membersLoading, setMembersLoading] = useState(false)
   const [tasksLoading, setTasksLoading] = useState(false)
@@ -63,7 +77,9 @@ export function useAdminLogic() {
     _setViewMode(mode)
     try {
       if (typeof window !== 'undefined') localStorage.setItem('admin_leads_view_mode', mode)
-    } catch {}
+    } catch (err) {
+      console.debug('localStorage not available for admin_leads_view_mode', err)
+    }
   }
   const [taskViewMode, _setTaskViewMode] = useState<'list' | 'board' | 'calendar'>(() => {
     try {
@@ -78,7 +94,9 @@ export function useAdminLogic() {
     _setTaskViewMode(mode)
     try {
       if (typeof window !== 'undefined') localStorage.setItem('admin_task_view_mode', mode)
-    } catch {}
+    } catch (err) {
+      console.debug('localStorage not available for admin_task_view_mode', err)
+    }
   }
   const [taskMonthFilter, setTaskMonthFilter] = useState<string>(new Date().toISOString().slice(0, 7))
   const [teamMemberForm, setTeamMemberForm] = useState<{
@@ -97,7 +115,7 @@ export function useAdminLogic() {
     photo: null
   })
   const [editingMemberId, setEditingMemberId] = useState<number | null>(null)
-  const [activeTab, setActiveTab] = useState<'overview' | 'leads' | 'team' | 'tasks' | 'brands' | 'social' | 'blog'>('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'leads' | 'team' | 'tasks' | 'brands' | 'social' | 'blog' | 'emails'>('overview')
 
   // Prevent duplicate concurrent fetches (useful in dev where StrictMode can double-invoke effects)
   const inflight = useRef<Set<string>>(new Set())
@@ -110,7 +128,7 @@ export function useAdminLogic() {
     // Regular Admin: respeta section_settings de la BD
     const sectionSettings = currentUser.sectionSettings || { leads: true, team: true, tasks: true, brands: true, blog: true }
     
-    const permissions: Record<'overview' | 'leads' | 'team' | 'tasks' | 'brands' | 'blog' | 'social', boolean> = {
+    const permissions: Record<'overview' | 'leads' | 'team' | 'tasks' | 'brands' | 'blog' | 'social' | 'emails', boolean> = {
       overview: true,
       leads: currentUser.isSuperAdmin ? false : sectionSettings.leads,
       team: true, // Todos pueden ver team (equipo o administradores)
@@ -118,6 +136,7 @@ export function useAdminLogic() {
       brands: currentUser.isSuperAdmin ? false : sectionSettings.brands,
       blog: currentUser.isSuperAdmin ? false : sectionSettings.blog,
       social: currentUser.isSuperAdmin ? false : sectionSettings.brands, // Social depende de brands
+      emails: currentUser.isSuperAdmin ? false : (sectionSettings.emails ?? true),
     }
 
     // Si el tab actual no está permitido, cambiar al primero permitido
@@ -1017,6 +1036,135 @@ export function useAdminLogic() {
     }
   }, [showNotification])
 
+  const fetchEmailTemplates = useCallback(async () => {
+    const key = 'email_templates'
+    if (inflight.current.has(key)) return
+    inflight.current.add(key)
+    setEmailLoading(true)
+    try {
+      const response = await fetch(`/api/email-templates`, {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : undefined,
+      })
+      if (!response.ok) throw new Error('Error al cargar plantillas')
+      const data = await response.json()
+      setEmailTemplates(data)
+    } catch (err) {
+      console.error(err)
+      showNotification('No se pudieron cargar las plantillas de correo')
+    } finally {
+      inflight.current.delete(key)
+      setEmailLoading(false)
+    }
+  }, [showNotification, token])
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      void fetchEmailTemplates()
+    }
+  }, [isAuthenticated, fetchEmailTemplates])
+
+  const createEmailTemplate = async (payload: { name: string; subject: string; body: string; variables?: Record<string, unknown>; json_schema?: unknown }) => {
+    if (!token) return null
+    try {
+      const response = await fetch('/api/email-templates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify(payload),
+      })
+      if (!response.ok) throw new Error('Error al crear plantilla')
+      const data = await response.json()
+      setEmailTemplates(prev => [data, ...prev])
+      showNotification('Plantilla creada')
+      return data
+    } catch (err) {
+      console.error(err)
+      showNotification('No se pudo crear la plantilla')
+      return null
+    }
+  }
+
+  const updateEmailTemplate = async (id: number, payload: { name: string; subject: string; body: string; variables?: Record<string, unknown>; json_schema?: unknown }) => {
+    if (!token) return false
+    try {
+      const response = await fetch(`/api/email-templates/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify(payload),
+      })
+      if (!response.ok) throw new Error('Error al actualizar plantilla')
+      const data = await response.json()
+      setEmailTemplates(prev => prev.map(t => t.id === id ? data : t))
+      showNotification('Plantilla actualizada')
+      return true
+    } catch (err) {
+      console.error(err)
+      showNotification('No se pudo actualizar la plantilla')
+      return false
+    }
+  }
+
+  const deleteEmailTemplate = async (id: number) => {
+    if (!token) return false
+    try {
+      const response = await fetch(`/api/email-templates/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` },
+      })
+      if (!response.ok) throw new Error('Error al eliminar plantilla')
+      setEmailTemplates(prev => prev.filter(t => t.id !== id))
+      showNotification('Plantilla eliminada')
+      return true
+    } catch (err) {
+      console.error(err)
+      showNotification('No se pudo eliminar la plantilla')
+      return false
+    }
+  }
+
+  const sendEmail = async (payload: { to: string; templateId?: number; subject?: string; body?: string; variables?: Record<string, unknown> }) => {
+    if (!token) return false
+    try {
+      const response = await fetch('/api/email/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify(payload),
+      })
+      const data = await response.json()
+      if (!response.ok) {
+        showNotification(data.message || 'Error al enviar correo')
+        return false
+      }
+      showNotification('Correo enviado')
+      return true
+    } catch (err) {
+      console.error(err)
+      showNotification('Error de conexión al enviar correo')
+      return false
+    }
+  }
+
+  const scheduleEmail = async (payload: { to: string; templateId?: number; subject?: string; body?: string; variables?: Record<string, unknown>; sendAt: string }) => {
+    if (!token) return false
+    try {
+      const response = await fetch('/api/email/schedule', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify(payload),
+      })
+      const data = await response.json()
+      if (!response.ok) {
+        showNotification(data.message || 'Error al programar correo')
+        return false
+      }
+      showNotification('Correo programado')
+      return true
+    } catch (err) {
+      console.error(err)
+      showNotification('Error de conexión al programar correo')
+      return false
+    }
+  }
+
   const handleCreateBrand = async (name: string, color: string, pkg: string, contactInfo: string, socialAccounts?: Array<{ platform: string; username: string; url?: string }>) => {
     if (!token) return
 
@@ -1527,5 +1675,13 @@ export function useAdminLogic() {
     handleCreateBlogPost,
     handleUpdateBlogPost,
     handleDeleteBlogPost,
+    emailTemplates,
+    emailLoading,
+    fetchEmailTemplates,
+    createEmailTemplate,
+    updateEmailTemplate,
+    deleteEmailTemplate,
+    sendEmail,
+    scheduleEmail,
   }
 }

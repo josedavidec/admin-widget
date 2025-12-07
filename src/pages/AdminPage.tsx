@@ -7,6 +7,7 @@ import { TeamManager } from '../components/admin/team/TeamManager'
 import { TaskManager } from '../components/admin/tasks/TaskManager'
 import { DashboardOverview } from '../components/admin/dashboard/DashboardOverview'
 import { SectionManager } from '../components/admin/SectionManager'
+import EmailTemplatesManager from '../components/admin/EmailTemplatesManager'
 import { SocialMetricsPanel } from '../components/admin/SocialMetricsPanel'
 import { useTheme } from '../hooks/useTheme'
 
@@ -95,10 +96,20 @@ export default function AdminPage() {
     handleResetPassword,
     blogPosts,
     blogLoading,
+    emailTemplates,
+    emailLoading,
+    fetchEmailTemplates,
+    createEmailTemplate,
+    updateEmailTemplate,
+    deleteEmailTemplate,
+    sendEmail,
+    scheduleEmail,
     handleCreateBlogPost,
     handleUpdateBlogPost,
     handleDeleteBlogPost,
   } = useAdminLogic()
+
+  // Email manager is now a full section/tab (not a modal)
 
   const { theme, toggleTheme } = useTheme()
   const [tagInput, setTagInput] = useState('')
@@ -111,8 +122,11 @@ export default function AdminPage() {
     tasks: true,
     brands: true,
     blog: true,
+    emails: true,
   })
-  const allowedSections = currentUser?.sectionSettings ?? { leads: true, team: true, tasks: true, brands: true, blog: true }
+  // Merge defaults with server-provided sectionSettings so missing keys default to true
+  const defaultSections = { leads: true, team: true, tasks: true, brands: true, blog: true, emails: true }
+  const allowedSections = { ...defaultSections, ...(currentUser?.sectionSettings ?? {}) }
   
   // Form states
   const [changePassForm, setChangePassForm] = useState({ current: '', new: '', confirm: '' })
@@ -453,6 +467,17 @@ export default function AdminPage() {
                       </span>
                     </button>
                   )}
+                  {/* Emails section */}
+                  {allowedSections.emails && (
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('emails')}
+                      className={`w-full rounded-xl px-4 py-3 text-left text-sm font-semibold transition-colors ${activeTab === 'emails' ? 'bg-blue-600 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'}`}
+                    >
+                      Emails
+                      <span className={`block text-xs font-normal lg:hidden text-gray-500`}>Plantillas y envíos</span>
+                    </button>
+                  )}
                 </>
               )}
             </nav>
@@ -604,6 +629,17 @@ export default function AdminPage() {
                   onUpdate={handleUpdateBlogPost}
                   onDelete={handleDeleteBlogPost}
                 />
+              ) : activeTab === 'emails' ? (
+                <EmailTemplatesManager
+                  emailTemplates={emailTemplates}
+                  emailLoading={emailLoading}
+                  fetchEmailTemplates={fetchEmailTemplates}
+                  createEmailTemplate={createEmailTemplate}
+                  updateEmailTemplate={updateEmailTemplate}
+                  deleteEmailTemplate={deleteEmailTemplate}
+                  sendEmail={sendEmail}
+                  scheduleEmail={scheduleEmail}
+                />
               ) : (
                 <TaskManager
                   tasks={tasks}
@@ -632,6 +668,8 @@ export default function AdminPage() {
             {notification}
           </div>
         )}
+
+        {/* Email manager is now rendered as its own section (see activeTab === 'emails') */}
 
         {activeLead && (
           <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/40 p-4">

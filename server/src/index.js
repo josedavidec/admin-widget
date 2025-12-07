@@ -507,6 +507,211 @@ app.get('/api/health', async (req, res) => {
   }
 })
 
+// --- Email templates and sending ---
+function replacePlaceholders(templateStr, variables = {}) {
+  if (!templateStr) return ''
+  let out = templateStr
+  try {
+    for (const [key, value] of Object.entries(variables || {})) {
+      const re = new RegExp(`{{\\s*${key}\\s*}}`, 'g')
+      out = out.replace(re, String(value ?? ''))
+    }
+  } catch (e) {
+    console.error('Error replacing placeholders', e)
+  }
+  return out
+}
+
+app.get('/api/email-templates', async (req, res) => {
+  try {
+    const user = await validateAuth(req)
+    if (!user) return res.status(401).json({ message: 'No autorizado' })
+
+    const [rows] = await pool.query('SELECT * FROM email_templates ORDER BY id DESC')
+    res.json(rows)
+  } catch (error) {
+    console.error(error)
+    res.status(500).json({ message: 'Error al leer plantillas' })
+  }
+})
+
+app.post('/api/email-templates', async (req, res) => {
+  try {
+    const user = await validateAuth(req)
+    if (!user) return res.status(401).json({ message: 'No autorizado' })
+
+    const { name, subject, body, variables, json_schema } = req.body
+    if (!name || !subject || !body) return res.status(400).json({ message: 'Datos inválidos' })
+
+    const [result] = await pool.query(
+      'INSERT INTO email_templates (name, subject, body, variables, json_schema, created_by) VALUES (:name, :subject, :body, :variables, :json_schema, :created_by)',
+      { name, subject, body, variables: variables ? JSON.stringify(variables) : null, json_schema: json_schema ? JSON.stringify(json_schema) : null, created_by: user.id }
+    )
+
+    const [rows] = await pool.query('SELECT * FROM email_templates WHERE id = :id LIMIT 1', { id: result.insertId })
+    res.json(rows[0])
+  } catch (error) {
+    console.error(error)
+    res.status(500).json({ message: 'Error al crear plantilla' })
+  }
+})
+
+app.put('/api/email-templates/:id', async (req, res) => {
+  try {
+    const user = await validateAuth(req)
+    if (!user) return res.status(401).json({ message: 'No autorizado' })
+
+    const id = Number(req.params.id)
+    const { name, subject, body, variables, json_schema } = req.body
+    if (!id || !name || !subject || !body) return res.status(400).json({ message: 'Datos inválidos' })
+
+    await pool.query(
+      'UPDATE email_templates SET name = :name, subject = :subject, body = :body, variables = :variables, json_schema = :json_schema WHERE id = :id',
+      { id, name, subject, body, variables: variables ? JSON.stringify(variables) : null, json_schema: json_schema ? JSON.stringify(json_schema) : null }
+    )
+
+    const [rows] = await pool.query('SELECT * FROM email_templates WHERE id = :id LIMIT 1', { id })
+    res.json(rows[0])
+  } catch (error) {
+    console.error(error)
+    res.status(500).json({ message: 'Error al actualizar plantilla' })
+  }
+})
+
+app.delete('/api/email-templates/:id', async (req, res) => {
+  try {
+    const user = await validateAuth(req)
+    if (!user) return res.status(401).json({ message: 'No autorizado' })
+
+    const id = Number(req.params.id)
+    if (!id) return res.status(400).json({ message: 'Id inválido' })
+
+    await pool.query('DELETE FROM email_templates WHERE id = :id', { id })
+    res.json({ ok: true })
+  } catch (error) {
+    console.error(error)
+    res.status(500).json({ message: 'Error al eliminar plantilla' })
+  }
+})
+
+app.post('/api/email/send', async (req, res) => {
+  try {
+    const user = await validateAuth(req)
+    if (!user) return res.status(401).json({ message: 'No autorizado' })
+
+    const { to, templateId, subject, body, variables } = req.body
+    if (!to) return res.status(400).json({ message: 'Campo "to" requerido' })
+
+    let finalSubject = subject
+    let finalBody = body
+
+    if (templateId) {
+      const [trows] = await pool.query('SELECT * FROM email_templates WHERE id = :id LIMIT 1', { id: templateId })
+      const template = trows[0]
+      if (!template) return res.status(400).json({ message: 'Plantilla no encontrada' })
+      finalSubject = replacePlaceholders(template.subject, variables || {})
+      finalBody = replacePlaceholders(template.body, variables || {})
+    } else {
+      finalSubject = replacePlaceholders(finalSubject || '', variables || {})
+      finalBody = replacePlaceholders(finalBody || '', variables || {})
+    }
+
+    if (!process.env.SMTP_HOST) {
+      console.log('SMTP not configured. Email payload:', { to, subject: finalSubject })
+      return res.json({ ok: true, note: 'SMTP not configured; logged to console' })
+    }
+
+    await transporter.sendMail({
+      from: process.env.SMTP_FROM || '"Admin" <noreply@example.com>',
+      to,
+      subject: finalSubject || '(sin asunto)',
+      html: finalBody || '',
+    })
+
+    res.json({ ok: true })
+  } catch (error) {
+    console.error('Error sending email', error)
+    res.status(500).json({ message: 'Error al enviar correo' })
+  }
+})
+
+app.post('/api/email/schedule', async (req, res) => {
+  try {
+    const user = await validateAuth(req)
+    if (!user) return res.status(401).json({ message: 'No autorizado' })
+
+    const { to, templateId, subject, body, variables, sendAt } = req.body
+    if (!to || !sendAt) return res.status(400).json({ message: 'Campos "to" y "sendAt" son requeridos' })
+
+    const sendDate = new Date(sendAt)
+    if (Number.isNaN(sendDate.getTime())) return res.status(400).json({ message: 'Fecha inválida' })
+
+    const [result] = await pool.query(
+      'INSERT INTO email_schedules (to_email, template_id, subject, body, variables, send_at, created_by) VALUES (:to_email, :template_id, :subject, :body, :variables, :send_at, :created_by)',
+      { to_email: to, template_id: templateId || null, subject: subject || null, body: body || null, variables: variables ? JSON.stringify(variables) : null, send_at: toMySQLDateTime(sendDate), created_by: user.id }
+    )
+
+    res.json({ ok: true, id: result.insertId })
+  } catch (error) {
+    console.error(error)
+    res.status(500).json({ message: 'Error al programar correo' })
+  }
+})
+
+// Scheduled processor (polls DB every minute)
+let _emailProcessorInterval = null
+async function processScheduledEmailsOnce() {
+  try {
+    if (!process.env.SMTP_HOST) return
+    const [rows] = await pool.query("SELECT * FROM email_schedules WHERE status = 'pending' AND send_at <= NOW() ORDER BY send_at ASC LIMIT 20")
+    for (const job of rows) {
+      try {
+        // Build message
+        let finalSubject = job.subject
+        let finalBody = job.body
+        let vars = {}
+        try { vars = job.variables ? JSON.parse(job.variables) : {} } catch (e) { vars = {} }
+
+        if (job.template_id) {
+          const [trows] = await pool.query('SELECT * FROM email_templates WHERE id = :id LIMIT 1', { id: job.template_id })
+          const template = trows[0]
+          if (template) {
+            finalSubject = replacePlaceholders(template.subject, vars)
+            finalBody = replacePlaceholders(template.body, vars)
+          }
+        } else {
+          finalSubject = replacePlaceholders(finalSubject || '', vars)
+          finalBody = replacePlaceholders(finalBody || '', vars)
+        }
+
+        await transporter.sendMail({
+          from: process.env.SMTP_FROM || '"Admin" <noreply@example.com>',
+          to: job.to_email,
+          subject: finalSubject || '(sin asunto)',
+          html: finalBody || '',
+        })
+
+        await pool.query('UPDATE email_schedules SET status = "sent" WHERE id = :id', { id: job.id })
+      } catch (err) {
+        console.error('Failed scheduled email', job.id, err)
+        await pool.query('UPDATE email_schedules SET status = "failed", error_text = :err WHERE id = :id', { id: job.id, err: String(err?.message || err) })
+      }
+    }
+  } catch (err) {
+    console.error('Error processing scheduled emails', err)
+  }
+}
+
+function startEmailProcessor() {
+  if (_emailProcessorInterval) return
+  // Run immediately, then every 60 seconds
+  processScheduledEmailsOnce()
+  _emailProcessorInterval = setInterval(() => {
+    processScheduledEmailsOnce()
+  }, 60 * 1000)
+}
+
+
 app.get('/api/leads', async (req, res, next) => {
   try {
     const user = await validateAuth(req)
@@ -1674,6 +1879,39 @@ async function ensureTables() {
   `)
 
   await pool.query(`
+    CREATE TABLE IF NOT EXISTS email_templates (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      name VARCHAR(255) NOT NULL,
+      subject VARCHAR(255) NOT NULL,
+      body LONGTEXT NOT NULL,
+      variables JSON NULL,
+      json_schema JSON NULL,
+      created_by INT NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  `)
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS email_schedules (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      to_email VARCHAR(255) NOT NULL,
+      template_id INT NULL,
+      subject VARCHAR(255) NULL,
+      body LONGTEXT NULL,
+      variables JSON NULL,
+      send_at DATETIME NOT NULL,
+      status ENUM('pending','sent','failed') NOT NULL DEFAULT 'pending',
+      error_text TEXT NULL,
+      created_by INT NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (template_id) REFERENCES email_templates(id) ON DELETE SET NULL,
+      INDEX idx_send_at (send_at),
+      INDEX idx_status (status)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  `)
+
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS section_settings (
       id INT PRIMARY KEY DEFAULT 1,
       leads BOOLEAN DEFAULT TRUE,
@@ -2113,6 +2351,23 @@ async function ensureTables() {
     }
     console.log('Blog posts seeded successfully')
   }
+
+  // Seed an example email template if none exists
+  const [emailCountRows] = await pool.query('SELECT COUNT(*) as count FROM email_templates')
+  if (emailCountRows[0].count === 0) {
+    console.log('Seeding example email template...')
+    await pool.query(
+      'INSERT INTO email_templates (name, subject, body, variables, json_schema, created_by) VALUES (?, ?, ?, ?, ?, ?)',
+      [
+        'Plantilla Bienvenida',
+        'Bienvenido a Ethan Comunicaciones, {{name}}',
+        '<p>Hola {{name}},</p><p>Gracias por contactar con <strong>Ethan Comunicaciones</strong>. Nos pondremos en contacto pronto.</p><p>Saludos,<br/>Equipo Ethan</p>',
+        JSON.stringify({ name: 'Nombre del contacto' }),
+        JSON.stringify({ type: 'object', properties: { name: { type: 'string' } } }),
+        0,
+      ]
+    )
+  }
 }
 
 async function bootstrap() {
@@ -2120,6 +2375,14 @@ async function bootstrap() {
   while (retries > 0) {
     try {
       await ensureTables()
+      // Start scheduled email processor after tables exist
+      try {
+        startEmailProcessor()
+        console.log('Email processor started')
+      } catch (e) {
+        console.error('Could not start email processor', e)
+      }
+
       app.listen(config.port, () => {
         console.log(`API escuchando en puerto ${config.port}`)
       })
