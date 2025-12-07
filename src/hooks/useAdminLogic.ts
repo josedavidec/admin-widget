@@ -192,7 +192,19 @@ export function useAdminLogic() {
 
   const fetchTeamMembers = useCallback(
     async (authToken?: string) => {
-      const tokenToUse = authToken || token
+      // Defensive: ignore authToken if it's not a string (e.g. an Event passed by mistake)
+      if (authToken && typeof authToken !== 'string') {
+        authToken = undefined
+      }
+      // Prefer explicit authToken, then state token, then localStorage fallback
+      let tokenToUse = authToken || token
+      if (!tokenToUse && typeof window !== 'undefined') {
+        tokenToUse = localStorage.getItem('auth_token') || null
+        if (tokenToUse) {
+          setToken(tokenToUse)
+          setIsAuthenticated(true)
+        }
+      }
       if (!tokenToUse) return
       const key = 'team-members'
       if (inflight.current.has(key)) return
@@ -252,9 +264,12 @@ export function useAdminLogic() {
           await fetchTeamMembers(tokenToUse)
         } else {
           setError('Error de autenticación')
+          // Debug info: log token and response status to help diagnose unexpected 401s
+          console.debug('[fetchLeads] tokenUsed:', tokenToUse, 'status:', response.status)
           if (response.status === 401) {
-            localStorage.removeItem('auth_token')
-            setIsAuthenticated(false)
+            // Do not forcibly remove token or log the user out here —
+            // avoid kicking the user from the session on manual refresh.
+            showNotification('Autenticación inválida. Si el problema persiste, vuelve a iniciar sesión.')
           }
         }
       } catch (err) {
@@ -265,7 +280,7 @@ export function useAdminLogic() {
         setLoading(false)
       }
     },
-    [fetchTeamMembers, token],
+    [fetchTeamMembers, token, showNotification],
   )
 
   useEffect(() => {
