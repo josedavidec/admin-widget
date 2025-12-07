@@ -4,6 +4,8 @@ export type Sections = {
   tasks: boolean
   brands: boolean
   blog: boolean
+  emails?: boolean
+  social?: boolean
 }
 
 type SectionManagerProps = {
@@ -18,6 +20,8 @@ export function SectionManager({ isSuperAdmin, sections = {
   tasks: true,
   brands: true,
   blog: true,
+  emails: true,
+  social: true,
 }, onSectionChange }: SectionManagerProps) {
   const sectionConfig = [
     {
@@ -54,6 +58,20 @@ export function SectionManager({ isSuperAdmin, sections = {
       description: 'Gestión de contenido y publicaciones',
       icon: '📝',
       color: 'bg-pink-100 dark:bg-pink-900/30'
+    },
+    {
+      key: 'emails' as const,
+      name: 'Emails',
+      description: 'Plantillas y envíos de correo',
+      icon: '✉️',
+      color: 'bg-sky-100 dark:bg-sky-900/30'
+    },
+    {
+      key: 'social' as const,
+      name: 'Redes Sociales',
+      description: 'Métricas y publicaciones en redes',
+      icon: '📣',
+      color: 'bg-amber-100 dark:bg-amber-900/30'
     },
   ]
 

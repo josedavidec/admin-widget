@@ -190,6 +190,8 @@ const sectionSettingsSchema = z.object({
   tasks: z.boolean().optional().default(true),
   brands: z.boolean().optional().default(true),
   blog: z.boolean().optional().default(true),
+  emails: z.boolean().optional().default(true),
+  social: z.boolean().optional().default(true),
 })
 
 const taskSchema = z.object({
@@ -260,7 +262,7 @@ async function validateAuth(req) {
 
 async function getSectionSettings() {
   try {
-    const [rows] = await pool.query('SELECT leads, team, tasks, brands, blog FROM section_settings WHERE id = 1')
+    const [rows] = await pool.query('SELECT leads, team, tasks, brands, blog, emails, social FROM section_settings WHERE id = 1')
     if (rows.length > 0) {
       return {
         leads: Boolean(rows[0].leads),
@@ -268,11 +270,13 @@ async function getSectionSettings() {
         tasks: Boolean(rows[0].tasks),
         brands: Boolean(rows[0].brands),
         blog: Boolean(rows[0].blog),
+        emails: Boolean(rows[0].emails),
+        social: Boolean(rows[0].social),
       }
     }
-    return { leads: true, team: true, tasks: true, brands: true, blog: true }
+    return { leads: true, team: true, tasks: true, brands: true, blog: true, emails: true, social: true }
   } catch (error) {
-    return { leads: true, team: true, tasks: true, brands: true, blog: true }
+    return { leads: true, team: true, tasks: true, brands: true, blog: true, emails: true, social: true }
   }
 }
 
@@ -1046,7 +1050,9 @@ app.get('/api/section-settings', async (req, res, next) => {
         team: true,
         tasks: true,
         brands: true,
-        blog: true
+        blog: true,
+        emails: true,
+        social: true,
       })
     }
 
@@ -1056,7 +1062,9 @@ app.get('/api/section-settings', async (req, res, next) => {
       team: Boolean(settings.team),
       tasks: Boolean(settings.tasks),
       brands: Boolean(settings.brands),
-      blog: Boolean(settings.blog)
+      blog: Boolean(settings.blog),
+      emails: Boolean(settings.emails),
+      social: Boolean(settings.social),
     })
   } catch (error) {
     next(error)
@@ -1073,15 +1081,17 @@ app.post('/api/section-settings', async (req, res, next) => {
     const payload = sectionSettingsSchema.parse(req.body)
 
     const [result] = await pool.query(`
-      UPDATE section_settings 
-      SET leads = :leads, team = :team, tasks = :tasks, brands = :brands, blog = :blog
-      WHERE id = 1
+        UPDATE section_settings 
+        SET leads = :leads, team = :team, tasks = :tasks, brands = :brands, blog = :blog, emails = :emails, social = :social
+        WHERE id = 1
     `, {
       leads: Boolean(payload.leads),
       team: Boolean(payload.team),
       tasks: Boolean(payload.tasks),
       brands: Boolean(payload.brands),
-      blog: Boolean(payload.blog)
+        blog: Boolean(payload.blog),
+        emails: Boolean(payload.emails),
+        social: Boolean(payload.social),
     })
 
     return res.json({ 
@@ -1919,16 +1929,37 @@ async function ensureTables() {
       tasks BOOLEAN DEFAULT TRUE,
       brands BOOLEAN DEFAULT TRUE,
       blog BOOLEAN DEFAULT TRUE,
+      emails BOOLEAN DEFAULT TRUE,
+      social BOOLEAN DEFAULT TRUE,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
   `)
+
+  // Ensure columns exist on upgrades where the table was created before emails/social were added
+  try {
+    await pool.query(`ALTER TABLE section_settings ADD COLUMN IF NOT EXISTS emails BOOLEAN DEFAULT TRUE`)
+    await pool.query(`ALTER TABLE section_settings ADD COLUMN IF NOT EXISTS social BOOLEAN DEFAULT TRUE`)
+  } catch (err) {
+    // Ignore - some MySQL versions might not support IF NOT EXISTS on ADD COLUMN
+    try {
+      await pool.query(`ALTER TABLE section_settings ADD COLUMN emails BOOLEAN DEFAULT TRUE`)
+    } catch (e) {
+      // If column already exists or cannot be added, just log and continue
+      console.debug('Could not add emails column to section_settings:', e?.message || e)
+    }
+    try {
+      await pool.query(`ALTER TABLE section_settings ADD COLUMN social BOOLEAN DEFAULT TRUE`)
+    } catch (e) {
+      console.debug('Could not add social column to section_settings:', e?.message || e)
+    }
+  }
 
   // Initialize section_settings if empty
   const [sectionRows] = await pool.query('SELECT COUNT(*) as count FROM section_settings')
   if (sectionRows[0].count === 0) {
     await pool.query(`
-      INSERT INTO section_settings (id, leads, team, tasks, brands, blog)
-      VALUES (1, TRUE, TRUE, TRUE, TRUE, TRUE)
+      INSERT INTO section_settings (id, leads, team, tasks, brands, blog, emails, social)
+      VALUES (1, TRUE, TRUE, TRUE, TRUE, TRUE, TRUE, TRUE)
     `)
   }
 
