@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import MediaLibrary from './MediaLibrary'
-import QuillEditor from './QuillEditor'
+import QuillEditor, { type QuillEditorHandle } from './QuillEditor'
 
 type EmailTemplate = {
   id?: number
@@ -41,6 +41,7 @@ export default function EmailTemplatesManager({
   const [testEmail, setTestEmail] = useState('')
   const [scheduleAt, setScheduleAt] = useState('')
   const [showMedia, setShowMedia] = useState(false)
+  const editorRef = useRef<QuillEditorHandle | null>(null)
   // Use templates provided by server (no defaults)
   const templatesToShow = emailTemplates
 
@@ -188,7 +189,7 @@ export default function EmailTemplatesManager({
                   <button type="button" onClick={() => setShowMedia(true)} className="px-2 py-1 border rounded">Media</button>
                 </div>
                 <div>
-                  <QuillEditor value={editing?.body || ''} onChange={(val: string) => setEditing((prev) => ({ ...(prev ?? {}), body: val }))} />
+                  <QuillEditor ref={editorRef} value={editing?.body || ''} onChange={(val: string) => setEditing((prev) => ({ ...(prev ?? {}), body: val }))} />
                 </div>
                 <div className="text-xs text-gray-500 mt-2">Usa placeholders como <code>{'{{name}}'}</code> o <code>{'{{company}}'}</code></div>
 
@@ -209,8 +210,18 @@ export default function EmailTemplatesManager({
       )}
       {showMedia && (
         <MediaLibrary onClose={() => setShowMedia(false)} onSelect={(url) => {
-          // insert image into editor content (update editing.body)
-          setEditing((prev) => ({ ...(prev ?? {}), body: `${prev?.body ?? ''}<img src="${url}" alt=""/>` }))
+          // Insert image into Quill at cursor position when possible.
+          // We need a stable ref to the QuillEditor instance — try to find it from the DOM/React tree.
+          // Simpler approach: update editing.body by inserting the image HTML if ref isn't available.
+          // Try to get the QuillEditor component via a known ref stored on the element.
+          if (editorRef.current?.insertImage) {
+            editorRef.current.insertImage(url)
+            const html = editorRef.current.getHTML()
+            setEditing((prev) => ({ ...(prev ?? {}), body: html }))
+          } else {
+            // Fallback: append image HTML to the template body
+            setEditing((prev) => ({ ...(prev ?? {}), body: `${prev?.body ?? ''}<img src="${url}" alt=""/>` }))
+          }
           setShowMedia(false)
         }} />
       )}
