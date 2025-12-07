@@ -41,6 +41,8 @@ export default function EmailTemplatesManager({
   const [testEmail, setTestEmail] = useState('')
   const [scheduleAt, setScheduleAt] = useState('')
   const [showMedia, setShowMedia] = useState(false)
+  // Use templates provided by server (no defaults)
+  const templatesToShow = emailTemplates
 
   useEffect(() => {
     if (fetchEmailTemplates) void fetchEmailTemplates()
@@ -62,14 +64,32 @@ export default function EmailTemplatesManager({
 
   const handleSendTest = async (template: EmailTemplate) => {
     if (!testEmail) return alert('Ingresa un correo de prueba')
-    if (sendEmail) await sendEmail({ to: testEmail, templateId: template.id })
+    if (sendEmail) {
+      if (template.id) {
+        await sendEmail({ to: testEmail, templateId: template.id })
+      } else {
+        await sendEmail({ to: testEmail, subject: template.subject, body: template.body })
+      }
+    }
     alert('Enviado (o registrado en logs si SMTP no configurado)')
   }
 
   const handleSchedule = async (template: EmailTemplate) => {
     if (!scheduleAt) return alert('Selecciona fecha/hora')
-    if (scheduleEmail) await scheduleEmail({ to: testEmail || '', templateId: template.id, sendAt: scheduleAt })
+    if (scheduleEmail) {
+      if (template.id) {
+        await scheduleEmail({ to: testEmail || '', templateId: template.id, sendAt: scheduleAt })
+      } else {
+        await scheduleEmail({ to: testEmail || '', subject: template.subject, body: template.body, sendAt: scheduleAt })
+      }
+    }
     alert('Programado')
+  }
+
+  const extractPlaceholders = (html?: string) => {
+    if (!html) return [] as string[]
+    const matches = html.match(/{{\s*([^}]+?)\s*}}/g) || []
+    return Array.from(new Set(matches.map((m) => m.replace(/{{\s*|\s*}}/g, ''))))
   }
 
   return (
@@ -93,8 +113,8 @@ export default function EmailTemplatesManager({
         <div>Cargando plantillas...</div>
       ) : (
         <div className="space-y-3">
-          {emailTemplates.map((t: EmailTemplate) => (
-            <div key={t.id} className="border rounded p-3 bg-white dark:bg-gray-800">
+          {templatesToShow.map((t: EmailTemplate) => (
+            <div key={t.id ?? t.name} className="border rounded p-3 bg-white dark:bg-gray-800">
               <div className="flex justify-between items-start">
                 <div>
                   <div className="font-medium">{t.name}</div>
@@ -102,7 +122,14 @@ export default function EmailTemplatesManager({
                 </div>
                 <div className="flex gap-2">
                   <button onClick={() => { setEditing(t); setShowNew(true) }} className="px-2 py-1 border rounded">Editar</button>
-                  <button onClick={() => { if (confirm('Eliminar plantilla?')) { if (deleteEmailTemplate && t.id) { void deleteEmailTemplate(t.id) } } }} className="px-2 py-1 border rounded">Eliminar</button>
+                  {t.id ? (
+                    <button onClick={() => { if (confirm('Eliminar plantilla?')) { if (deleteEmailTemplate && t.id) { void deleteEmailTemplate(t.id) } } }} className="px-2 py-1 border rounded">Eliminar</button>
+                  ) : (
+                    <>
+                      <button onClick={async () => { setEditing(t); setShowNew(true) }} className="px-2 py-1 border rounded">Usar / Guardar</button>
+                      <button onClick={async () => { if (createEmailTemplate) { await createEmailTemplate(t); if (fetchEmailTemplates) await fetchEmailTemplates() } }} className="px-2 py-1 bg-blue-600 text-white rounded">Guardar</button>
+                    </>
+                  )}
                 </div>
               </div>
 
@@ -117,15 +144,15 @@ export default function EmailTemplatesManager({
               </div>
             </div>
           ))}
-          {emailTemplates.length === 0 && (
+          {templatesToShow.length === 0 && (
             <div className="text-gray-500">No hay plantillas todavía</div>
           )}
         </div>
       )}
 
       {showNew && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="bg-white dark:bg-gray-800 p-6 rounded w-full max-w-2xl">
+        <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 p-4 overflow-auto">
+          <div className="bg-white dark:bg-gray-800 p-6 rounded w-full max-w-2xl my-8 max-h-[90vh] overflow-y-auto">
             <h4 className="text-lg font-semibold mb-3">{editing?.id ? 'Editar plantilla' : 'Nueva plantilla'}</h4>
             <div className="space-y-3">
               <div>
@@ -164,6 +191,12 @@ export default function EmailTemplatesManager({
                   <QuillEditor value={editing?.body || ''} onChange={(val: string) => setEditing((prev) => ({ ...(prev ?? {}), body: val }))} />
                 </div>
                 <div className="text-xs text-gray-500 mt-2">Usa placeholders como <code>{'{{name}}'}</code> o <code>{'{{company}}'}</code></div>
+
+                <div className="mt-4 border-t pt-4">
+                  <h5 className="text-sm font-medium mb-2">Vista previa</h5>
+                  <div className="border rounded p-3 bg-white text-sm prose max-w-none" dangerouslySetInnerHTML={{ __html: editing?.body || '<p></p>' }} />
+                  <div className="text-xs text-gray-500 mt-2">Placeholders detectados: {extractPlaceholders(editing?.body).length === 0 ? '—' : extractPlaceholders(editing?.body).map(p => <span key={p} className="inline-block mr-2 px-2 py-0.5 bg-gray-100 rounded">{p}</span>)}</div>
+                </div>
               </div>
 
               <div className="flex justify-end gap-2 mt-4">
