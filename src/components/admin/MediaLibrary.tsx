@@ -28,7 +28,18 @@ export default function MediaLibrary({ onClose, onSelect, inline = false }: Prop
       const res = await fetch('/api/media')
       if (!res.ok) throw new Error('Error fetching media')
       const data = await res.json()
-      setItems(data)
+      // Ensure any standalone uploads placed in /uploads (like LOGO1.webp) are visible
+      const ensured: MediaItem[] = Array.isArray(data) ? data : []
+      try {
+        const specialLogo = '/uploads/LOGO1.webp'
+        const head = await fetch(specialLogo, { method: 'HEAD' })
+        if (head.ok && !ensured.find((it) => it.url === specialLogo)) {
+          ensured.unshift({ id: 0, file_name: 'LOGO1.webp', original_name: 'LOGO1.webp', mime_type: 'image/webp', size: 0, url: specialLogo })
+        }
+      } catch (err) {
+        // ignore
+      }
+      setItems(ensured)
     } catch (err) {
       console.error(err)
       alert('No se pudieron cargar los medios')
