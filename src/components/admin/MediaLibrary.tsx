@@ -77,6 +77,28 @@ export default function MediaLibrary({ onClose, onSelect, inline = false }: Prop
     }
   }
 
+  const handleImport = async () => {
+    if (!confirm('Importar archivos desde la carpeta uploads al registro de la base de datos?')) return
+    setLoading(true)
+    try {
+      const token = localStorage.getItem('auth_token')
+      const res = await fetch('/api/media/import', { method: 'POST', headers: token ? { Authorization: `Bearer ${token}` } : undefined })
+      if (!res.ok) {
+        if (res.status === 401) return alert('No autorizado. Inicia sesión como admin.')
+        throw new Error('Import failed')
+      }
+      const data = await res.json()
+      // refresh list
+      await fetchItems()
+      alert(`Importados: ${data.count || 0}`)
+    } catch (err) {
+      console.error(err)
+      alert('Error al importar archivos')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const handleDelete = async (id: number) => {
     if (!confirm('Eliminar archivo?')) return
     try {
@@ -137,6 +159,7 @@ export default function MediaLibrary({ onClose, onSelect, inline = false }: Prop
           <div className="flex items-center gap-2">
             <input type="file" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
             <button disabled={uploading} onClick={handleUpload} className="px-3 py-1 bg-blue-600 text-white rounded">Subir</button>
+            <button disabled={loading} onClick={handleImport} className="px-3 py-1 border rounded">Importar uploads</button>
             <button onClick={() => { onClose?.(); }} className="px-3 py-1 border rounded">Cerrar</button>
           </div>
         </div>

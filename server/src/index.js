@@ -94,6 +94,56 @@ const pool = createPool({
   }
 })()
 
+// Import existing files from uploads into media_assets (helper)
+async function importUploads() {
+  try {
+    const files = await fs.promises.readdir(uploadDir)
+    const inserted = []
+    for (const file of files) {
+      const filepath = path.join(uploadDir, file)
+      const stat = await fs.promises.stat(filepath)
+      if (!stat.isFile()) continue
+
+      // Only consider image-like extensions
+      const ext = path.extname(file).toLowerCase()
+      if (!['.png', '.jpg', '.jpeg', '.webp', '.gif', '.svg', '.avif'].includes(ext)) continue
+
+      // Check if already in DB
+      const [rows] = await pool.query('SELECT id FROM media_assets WHERE file_name = :file_name LIMIT 1', { file_name: file })
+      if (rows && rows.length > 0) continue
+
+      const mimeType = ext === '.webp' ? 'image/webp' : ext === '.svg' ? 'image/svg+xml' : `image/${ext.replace('.', '')}`
+      const url = `/uploads/${file}`
+
+      const [result] = await pool.query(`INSERT INTO media_assets (file_name, original_name, mime_type, size, url, created_by) VALUES (:file_name, :original_name, :mime_type, :size, :url, :created_by)`, {
+        file_name: file,
+        original_name: file,
+        mime_type: mimeType,
+        size: stat.size,
+        url,
+        created_by: null,
+      })
+
+      const insertedId = result.insertId
+      const [newRows] = await pool.query('SELECT id, file_name, original_name, mime_type, size, url, created_at FROM media_assets WHERE id = :id LIMIT 1', { id: insertedId })
+      if (newRows && newRows[0]) inserted.push(newRows[0])
+    }
+    return inserted
+  } catch (err) {
+    console.error('importUploads error', err)
+    return []
+  }
+}
+
+// Run once on startup to ensure LOGO1.webp (and other images) are present in media_assets
+;(async () => {
+  try {
+    await importUploads()
+  } catch (err) {
+    // ignore
+  }
+})()
+
 const corsWhitelist = new Set(config.allowedOrigins)
 
 app.use((req, res, next) => {
@@ -1219,6 +1269,18 @@ app.delete('/api/media/:id', async (req, res, next) => {
     })
 
     res.json({ message: 'Deleted' })
+  } catch (err) {
+    next(err)
+  }
+})
+
+// Import uploads endpoint (admin only) - scans upload dir and inserts missing files
+app.post('/api/media/import', async (req, res, next) => {
+  try {
+    const user = await validateAuth(req)
+    if (!user || (!user.isAdmin && !user.isSuperAdmin)) return res.status(401).json({ message: 'No autorizado' })
+    const inserted = await importUploads()
+    return res.json({ inserted, count: inserted.length })
   } catch (err) {
     next(err)
   }
