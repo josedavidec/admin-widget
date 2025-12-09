@@ -116,6 +116,8 @@ export default function AdminPage() {
   // Email manager is now a full section/tab (not a modal)
 
   const { theme, toggleTheme } = useTheme()
+  const [logoUrl, setLogoUrl] = useState<string>(() => localStorage.getItem('site_logo') || '/uploads/LOGO1.webp')
+  const [showMediaModal, setShowMediaModal] = useState(false)
   const [tagInput, setTagInput] = useState('')
   const [showChangePassword, setShowChangePassword] = useState(false)
   const [authView, setAuthView] = useState<'login' | 'forgot' | 'reset'>('login')
@@ -347,7 +349,18 @@ export default function AdminPage() {
               <h2 className="mt-2 text-2xl font-bold text-gray-900 dark:text-white">
                 {currentUser?.isSuperAdmin ? 'Panel Super Admin' : 'Panel Admin'}
               </h2>
-              <img src="/LOGO1.webp" className="w-32 mx-auto" alt="" />
+              <div className="w-32 mx-auto">
+                <div className="relative group">
+                  <img src={logoUrl} className="w-32 mx-auto" alt="Logo" />
+                  <button
+                    type="button"
+                    onClick={() => setShowMediaModal(true)}
+                    className="absolute inset-0 flex items-center justify-center bg-black/40 text-white text-sm opacity-0 group-hover:opacity-100 transition-opacity rounded"
+                  >
+                    Cambiar logo
+                  </button>
+                </div>
+              </div>
               <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
                 {currentUser?.isSuperAdmin ? 'Gestiona secciones y administradores.' : 'Gestiona leads, tareas y equipo.'}
               </p>
@@ -704,6 +717,19 @@ export default function AdminPage() {
           <div className="fixed bottom-4 right-4 bg-gray-900 text-white px-4 py-2 rounded-lg shadow-lg">
             {notification}
           </div>
+        )}
+
+        {showMediaModal && (
+          <Suspense fallback={<div className="fixed inset-0 z-50 flex items-center justify-center bg-black"><div className="w-12 h-12 border-4 border-white border-t-transparent rounded-full animate-spin"/></div>}>
+            <MediaLibrary
+              onClose={() => setShowMediaModal(false)}
+              onSelect={(url: string) => {
+                setLogoUrl(url)
+                try { localStorage.setItem('site_logo', url) } catch (e) {}
+                setShowMediaModal(false)
+              }}
+            />
+          </Suspense>
         )}
 
         {/* Email manager is now rendered as its own section (see activeTab === 'emails') */}
