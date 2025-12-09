@@ -1,6 +1,7 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, lazy, Suspense } from 'react'
 import MediaLibrary from './MediaLibrary'
-import QuillEditor, { type QuillEditorHandle } from './QuillEditor'
+import type { QuillEditorHandle } from './QuillEditor'
+const QuillEditor = lazy(() => import('./QuillEditor'))
 
 type EmailTemplate = {
   id?: number
@@ -189,7 +190,9 @@ export default function EmailTemplatesManager({
                   <button type="button" onClick={() => setShowMedia(true)} className="px-2 py-1 border rounded">Media</button>
                 </div>
                 <div>
-                  <QuillEditor ref={editorRef} value={editing?.body || ''} onChange={(val: string) => setEditing((prev) => ({ ...(prev ?? {}), body: val }))} />
+                  <Suspense fallback={<div className="p-6">Cargando editor...</div>}>
+                    <QuillEditor ref={editorRef} value={editing?.body || ''} onChange={(val: string) => setEditing((prev) => ({ ...(prev ?? {}), body: val }))} />
+                  </Suspense>
                 </div>
                 <div className="text-xs text-gray-500 mt-2">Usa placeholders como <code>{'{{name}}'}</code> o <code>{'{{company}}'}</code></div>
 

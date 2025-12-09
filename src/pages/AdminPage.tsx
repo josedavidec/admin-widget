@@ -1,16 +1,18 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, lazy, Suspense } from 'react'
 import { useAdminLogic } from '../hooks/useAdminLogic'
-import { BrandManager } from '../components/admin/BrandManager'
-import { BlogManager } from '../components/admin/BlogManager'
-import { LeadManager } from '../components/admin/leads/LeadManager'
-import { TeamManager } from '../components/admin/team/TeamManager'
-import { TaskManager } from '../components/admin/tasks/TaskManager'
-import { DashboardOverview } from '../components/admin/dashboard/DashboardOverview'
-import { SectionManager } from '../components/admin/SectionManager'
-import EmailTemplatesManager from '../components/admin/EmailTemplatesManager'
-import { SocialMetricsPanel } from '../components/admin/SocialMetricsPanel'
 import { useTheme } from '../hooks/useTheme'
-import MediaLibrary from '../components/admin/MediaLibrary'
+
+// Lazy-load admin subcomponents to reduce initial admin bundle size
+const BrandManager = lazy(() => import('../components/admin/BrandManager').then(m => ({ default: m.BrandManager })))
+const BlogManager = lazy(() => import('../components/admin/BlogManager').then(m => ({ default: m.BlogManager })))
+const LeadManager = lazy(() => import('../components/admin/leads/LeadManager').then(m => ({ default: m.LeadManager })))
+const TeamManager = lazy(() => import('../components/admin/team/TeamManager').then(m => ({ default: m.TeamManager })))
+const TaskManager = lazy(() => import('../components/admin/tasks/TaskManager').then(m => ({ default: m.TaskManager })))
+const DashboardOverview = lazy(() => import('../components/admin/dashboard/DashboardOverview').then(m => ({ default: m.DashboardOverview })))
+const SectionManager = lazy(() => import('../components/admin/SectionManager').then(m => ({ default: m.SectionManager })))
+const EmailTemplatesManager = lazy(() => import('../components/admin/EmailTemplatesManager'))
+const SocialMetricsPanel = lazy(() => import('../components/admin/SocialMetricsPanel').then(m => ({ default: m.SocialMetricsPanel })))
+const MediaLibrary = lazy(() => import('../components/admin/MediaLibrary'))
 
 export default function AdminPage() {
   const {
@@ -335,7 +337,8 @@ export default function AdminPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 p-4 md:p-8 transition-colors duration-200">
+    <Suspense fallback={<div className="fixed inset-0 z-50 flex items-center justify-center bg-black"><div className="w-12 h-12 border-4 border-white border-t-transparent rounded-full animate-spin"/></div>}>
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 p-4 md:p-8 transition-colors duration-200">
       <div className="mx-auto max-w-[1920px]">
         <div className="flex flex-col gap-6 lg:flex-row">
           <aside className="flex flex-col gap-6 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-6 shadow-sm lg:w-64 shrink-0 transition-colors duration-200">
@@ -646,6 +649,10 @@ export default function AdminPage() {
                   onCreate={handleCreateBrand} 
                   onDelete={handleDeleteBrand} 
                 />
+              ) : activeTab === 'media' ? (
+                <div className="p-4">
+                  <MediaLibrary inline />
+                </div>
               ) : activeTab === 'social' ? (
                 <SocialMetricsPanel
                   brands={brands}
@@ -868,6 +875,7 @@ export default function AdminPage() {
           </div>
         )}
       </div>
-    </div>
+      </div>
+    </Suspense>
   )
 }

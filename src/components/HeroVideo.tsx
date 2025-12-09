@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { HashLink } from "react-router-hash-link";
-import { motion, useReducedMotion } from "motion/react";
+import { useReducedMotion } from "motion/react";
 import { useTranslation } from "react-i18next";
 
 export default function HeroVideo() {
@@ -273,41 +273,24 @@ export default function HeroVideo() {
 
       {/* Contenido Hero Rediseñado */}
       <div className="relative z-10 flex flex-col justify-center items-center text-center h-full px-8 md:px-24 py-20">
-        <motion.h1
-          initial={
-            allowHeroMotion ? { opacity: 0, y: 20 } : { opacity: 1, y: 0 }
-          }
-          animate={{ opacity: 1, y: 0 }}
-          transition={
-            allowHeroMotion
-              ? { duration: 1, ease: "easeOut" }
-              : { duration: 0.01 }
-          }
-          className="text-4xl md:text-[4rem] font-bold text-white md:leading-13 tracking-tight max-w-2xl mb-4 text-center drop-shadow-[0_2px_20px_rgba(0,0,0,0.4)]"
-        >
-          <span className="block text-3xl md:text-7xl">Agencia Ethan</span>
-          <span>Comunicaciones</span>
-        </motion.h1>
+        {/* Use CSS transitions/animations composed only of transform + opacity to keep on compositor */}
+        <HeroTitle allowMotion={allowHeroMotion} />
       </div>
 
-      {/* Scroll indicator */}
-      <motion.div
-        initial={
-          allowHeroMotion ? { opacity: 0, y: -10 } : { opacity: 1, y: 0 }
-        }
-        animate={{ opacity: 1, y: 0 }}
-        transition={
-          allowHeroMotion
-            ? {
-                delay: 1.2,
-                duration: 0.6,
-                repeat: Infinity,
-                repeatType: "mirror",
-              }
-            : { duration: 0.01 }
-        }
+      {/* Scroll indicator (CSS animation composed of transform) */}
+      <div
+        style={{ willChange: allowHeroMotion ? "transform, opacity" : undefined }}
         className="absolute bottom-10 left-1/2 transform -translate-x-1/2 text-white/80 z-50 pointer-events-auto"
       >
+        <style>{`
+          @keyframes hero-bounce {
+            0% { transform: translateY(0); }
+            50% { transform: translateY(-8px); }
+            100% { transform: translateY(0); }
+          }
+          .hero-bounce { animation: hero-bounce 1.4s ease-in-out infinite; }
+        `}</style>
+
         <HashLink
           smooth
           to="#marcas"
@@ -316,7 +299,35 @@ export default function HeroVideo() {
           {t("hero.scroll")}
         </HashLink>
         <div className="w-0.5 h-8 bg-white/50 mt-2 rounded-full mx-auto" />
-      </motion.div>
+        <div className={allowHeroMotion ? "hero-bounce" : undefined} aria-hidden />
+      </div>
     </section>
+  );
+}
+
+function HeroTitle({ allowMotion }: { allowMotion: boolean }) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    // mount after paint so transitions run on compositor-friendly properties
+    requestAnimationFrame(() => setMounted(true));
+  }, []);
+
+  const baseClass =
+    "text-4xl md:text-[4rem] font-bold text-white md:leading-13 tracking-tight max-w-2xl mb-4 text-center drop-shadow-[0_2px_20px_rgba(0,0,0,0.4)]";
+
+  const style: React.CSSProperties = allowMotion
+    ? {
+        willChange: "transform, opacity",
+        transition: "transform 1s ease, opacity 1s ease",
+        transform: mounted ? "translateY(0)" : "translateY(20px)",
+        opacity: mounted ? 1 : 0,
+      }
+    : { transform: "none", opacity: 1 };
+
+  return (
+    <h1 className={baseClass} style={style} role="banner">
+      <span className="block text-3xl md:text-7xl">Agencia Ethan</span>
+      <span>Comunicaciones</span>
+    </h1>
   );
 }
