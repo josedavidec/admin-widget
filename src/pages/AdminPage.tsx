@@ -25,6 +25,7 @@ export default function AdminPage() {
     isAuthenticated,
     error,
     notification,
+    showNotification,
     statusFilter,
     assignedFilter,
     serviceFilter,
@@ -614,7 +615,7 @@ export default function AdminPage() {
                 />
               ) : activeTab === 'media' ? (
                 <div className="p-4">
-                  <MediaLibrary inline onSelect={() => { /* noop for inline library */ }} />
+                  <MediaLibrary inline onSelect={() => { /* noop for inline library */ }} onNotify={showNotification} />
                 </div>
               ) : null
             ) : (
@@ -684,7 +685,7 @@ export default function AdminPage() {
                 />
               ) : activeTab === 'media' ? (
                 <div className="p-4">
-                  <MediaLibrary inline />
+                  <MediaLibrary inline onNotify={showNotification} />
                 </div>
               ) : activeTab === 'social' ? (
                 <SocialMetricsPanel
@@ -743,6 +744,7 @@ export default function AdminPage() {
           <Suspense fallback={<div className="fixed inset-0 z-50 flex items-center justify-center bg-black"><div className="w-12 h-12 border-4 border-white border-t-transparent rounded-full animate-spin"/></div>}>
             <MediaLibrary
               onClose={() => setShowMediaModal(false)}
+              onNotify={showNotification}
               onSelect={async (url: string) => {
                 setLogoUrl(url)
                 try { localStorage.setItem('site_logo', url) } catch (e) {}

@@ -14,13 +14,21 @@ type Props = {
   onClose?: () => void
   onSelect?: (url: string) => void
   inline?: boolean
+  onNotify?: (msg: string) => void
 }
 
-export default function MediaLibrary({ onClose, onSelect, inline = false }: Props) {
+export default function MediaLibrary({ onClose, onSelect, inline = false, onNotify }: Props) {
   const [items, setItems] = useState<MediaItem[]>([])
   const [loading, setLoading] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [file, setFile] = useState<File | null>(null)
+
+  const notify = (msg: string) => {
+    if (typeof onNotify === 'function') {
+      try { onNotify(msg); return } catch (e) { /* ignore */ }
+    }
+    try { alert(msg) } catch (e) { console.log(msg) }
+  }
 
   const fetchItems = async () => {
     setLoading(true)
@@ -42,7 +50,7 @@ export default function MediaLibrary({ onClose, onSelect, inline = false }: Prop
       setItems(ensured)
     } catch (err) {
       console.error(err)
-      alert('No se pudieron cargar los medios')
+      notify('No se pudieron cargar los medios')
     } finally {
       setLoading(false)
     }
@@ -53,7 +61,7 @@ export default function MediaLibrary({ onClose, onSelect, inline = false }: Prop
   }, [])
 
   const handleUpload = async () => {
-    if (!file) return alert('Selecciona un archivo')
+    if (!file) return notify('Selecciona un archivo')
     setUploading(true)
     try {
       const form = new FormData()
@@ -68,10 +76,10 @@ export default function MediaLibrary({ onClose, onSelect, inline = false }: Prop
       const data = await res.json()
       setItems(prev => [data, ...prev])
       setFile(null)
-      alert('Subido')
+      notify('Subido')
     } catch (err) {
       console.error(err)
-      alert('Error al subir archivo')
+      notify('Error al subir archivo')
     } finally {
       setUploading(false)
     }
@@ -83,17 +91,17 @@ export default function MediaLibrary({ onClose, onSelect, inline = false }: Prop
     try {
       const token = localStorage.getItem('auth_token')
       const res = await fetch('/api/media/import', { method: 'POST', headers: token ? { Authorization: `Bearer ${token}` } : undefined })
-      if (!res.ok) {
-        if (res.status === 401) return alert('No autorizado. Inicia sesión como admin.')
-        throw new Error('Import failed')
-      }
-      const data = await res.json()
-      // refresh list
-      await fetchItems()
-      alert(`Importados: ${data.count || 0}`)
+        if (!res.ok) {
+          if (res.status === 401) return notify('No autorizado. Inicia sesión como admin.')
+          throw new Error('Import failed')
+        }
+        const data = await res.json()
+        // refresh list
+        await fetchItems()
+        notify(`Importados: ${data.count || 0}`)
     } catch (err) {
       console.error(err)
-      alert('Error al importar archivos')
+        notify('Error al importar archivos')
     } finally {
       setLoading(false)
     }
@@ -108,7 +116,7 @@ export default function MediaLibrary({ onClose, onSelect, inline = false }: Prop
       setItems(prev => prev.filter(i => i.id !== id))
     } catch (err) {
       console.error(err)
-      alert('Error al eliminar')
+      notify('Error al eliminar')
     }
   }
 

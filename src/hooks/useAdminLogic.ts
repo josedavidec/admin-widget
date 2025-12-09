@@ -1600,6 +1600,7 @@ export function useAdminLogic() {
   }
 
   return {
+    showNotification,
     handleChangePassword,
     handleForgotPassword,
     handleResetPassword,
