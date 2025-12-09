@@ -1,4 +1,4 @@
-import React, { useEffect, useImperativeHandle, forwardRef } from 'react'
+import { useEffect, useImperativeHandle, forwardRef } from 'react'
 import { useQuill } from 'react-quilljs'
 import 'quill/dist/quill.snow.css'
 

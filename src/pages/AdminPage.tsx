@@ -80,6 +80,7 @@ export default function AdminPage() {
     handleRemoveTag,
     handleTeamMemberCheckboxChange,
     handleTeamMemberPhotoChange,
+    handleTeamMemberSetPhotoFile,
     tasks,
     brands,
     brandsLoading,
@@ -125,9 +126,10 @@ export default function AdminPage() {
     blog: true,
     emails: true,
     media: true,
+    social: true,
   })
   // Merge defaults with server-provided sectionSettings so missing keys default to true
-  const defaultSections = { leads: true, team: true, tasks: true, brands: true, blog: true, emails: true, media: true }
+  const defaultSections = { leads: true, team: true, tasks: true, brands: true, blog: true, emails: true, media: true, social: true }
   const allowedSections = { ...defaultSections, ...(currentUser?.sectionSettings ?? {}) }
   
   // Form states

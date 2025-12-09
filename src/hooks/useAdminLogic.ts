@@ -127,17 +127,17 @@ export function useAdminLogic() {
     // Super Admin: solo overview y team
     // Regular Admin: respeta section_settings de la BD
     const sectionSettings = currentUser.sectionSettings || { leads: true, team: true, tasks: true, brands: true, blog: true, emails: true, media: true }
-    
+
     const permissions: Record<'overview' | 'leads' | 'team' | 'tasks' | 'brands' | 'blog' | 'social' | 'emails' | 'media', boolean> = {
       overview: true,
-      leads: currentUser.isSuperAdmin ? false : sectionSettings.leads,
+      leads: currentUser.isSuperAdmin ? false : Boolean(sectionSettings.leads),
       team: true, // Todos pueden ver team (equipo o administradores)
-      tasks: currentUser.isSuperAdmin ? false : sectionSettings.tasks,
-      brands: currentUser.isSuperAdmin ? false : sectionSettings.brands,
-      blog: currentUser.isSuperAdmin ? false : sectionSettings.blog,
-      social: currentUser.isSuperAdmin ? false : sectionSettings.brands, // Social depende de brands
-      emails: currentUser.isSuperAdmin ? false : (sectionSettings.emails ?? true),
-      media: currentUser.isSuperAdmin ? false : (sectionSettings.media ?? true),
+      tasks: currentUser.isSuperAdmin ? false : Boolean(sectionSettings.tasks),
+      brands: currentUser.isSuperAdmin ? false : Boolean(sectionSettings.brands),
+      blog: currentUser.isSuperAdmin ? false : Boolean(sectionSettings.blog),
+      social: currentUser.isSuperAdmin ? false : Boolean(sectionSettings.brands), // Social depende de brands
+      emails: currentUser.isSuperAdmin ? false : Boolean(sectionSettings.emails),
+      media: currentUser.isSuperAdmin ? false : Boolean(sectionSettings.media),
     }
 
     // Si el tab actual no está permitido, cambiar al primero permitido
@@ -1083,13 +1083,16 @@ export function useAdminLogic() {
     }
   }, [isAuthenticated, fetchEmailTemplates])
 
-  const createEmailTemplate = async (payload: { name: string; subject: string; body: string; variables?: Record<string, unknown>; json_schema?: unknown }) => {
+  const createEmailTemplate = async (payload: Partial<EmailTemplate>) => {
     if (!token) return null
     try {
+      // Ensure minimal shape for server
+      const bodyPayload: Partial<EmailTemplate> = { ...payload }
+      if (!bodyPayload.name) bodyPayload.name = 'Sin nombre'
       const response = await fetch('/api/email-templates', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(bodyPayload),
       })
       if (!response.ok) throw new Error('Error al crear plantilla')
       const data = await response.json()
@@ -1103,7 +1106,7 @@ export function useAdminLogic() {
     }
   }
 
-  const updateEmailTemplate = async (id: number, payload: { name: string; subject: string; body: string; variables?: Record<string, unknown>; json_schema?: unknown }) => {
+  const updateEmailTemplate = async (id: number, payload: Partial<EmailTemplate>) => {
     if (!token) return false
     try {
       const response = await fetch(`/api/email-templates/${id}`, {
