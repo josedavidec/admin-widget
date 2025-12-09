@@ -174,6 +174,26 @@ export default function AdminPage() {
     }
   }, [currentUser?.isSuperAdmin, isAuthenticated])
 
+  // Load server site settings (logo) to initialize admin logo
+  useEffect(() => {
+    let mounted = true
+    const fetchSettings = async () => {
+      try {
+        const res = await fetch('/api/site-settings')
+        if (!res.ok) return
+        const data = await res.json()
+        if (mounted && data?.logo_url) {
+          setLogoUrl(data.logo_url)
+          try { localStorage.setItem('site_logo', data.logo_url) } catch (e) {}
+        }
+      } catch (err) {
+        // ignore
+      }
+    }
+    void fetchSettings()
+    return () => { mounted = false }
+  }, [])
+
   const handleSectionChange = async (section: keyof typeof sections, enabled: boolean) => {
     // Actualizar estado local
     const newSections = { ...sections, [section]: enabled }
@@ -723,9 +743,23 @@ export default function AdminPage() {
           <Suspense fallback={<div className="fixed inset-0 z-50 flex items-center justify-center bg-black"><div className="w-12 h-12 border-4 border-white border-t-transparent rounded-full animate-spin"/></div>}>
             <MediaLibrary
               onClose={() => setShowMediaModal(false)}
-              onSelect={(url: string) => {
+              onSelect={async (url: string) => {
                 setLogoUrl(url)
                 try { localStorage.setItem('site_logo', url) } catch (e) {}
+                // persist in server
+                try {
+                  const token = localStorage.getItem('auth_token')
+                  await fetch('/api/site-settings', {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                    },
+                    body: JSON.stringify({ logo_url: url }),
+                  })
+                } catch (err) {
+                  console.error('Error saving logo to server', err)
+                }
                 setShowMediaModal(false)
               }}
             />

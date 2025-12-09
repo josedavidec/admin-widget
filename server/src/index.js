@@ -74,6 +74,26 @@ const pool = createPool({
   timezone: 'Z',
 })
 
+// Ensure site_settings table exists (simple key-value row with id=1)
+(async () => {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS site_settings (
+        id INT PRIMARY KEY,
+        logo_url VARCHAR(1024) DEFAULT NULL,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `)
+    // ensure there is a row with id = 1 so SELECT/UPDATE is simpler
+    const [rows] = await pool.query('SELECT id FROM site_settings WHERE id = 1')
+    if (!rows || rows.length === 0) {
+      await pool.query('INSERT INTO site_settings (id, logo_url) VALUES (1, NULL)')
+    }
+  } catch (err) {
+    console.error('Error ensuring site_settings table:', err)
+  }
+})()
+
 const corsWhitelist = new Set(config.allowedOrigins)
 
 app.use((req, res, next) => {
@@ -109,6 +129,33 @@ app.use(
   }),
 )
 app.use(morgan(config.env === 'production' ? 'combined' : 'dev'))
+
+// Site settings endpoints (public GET, authenticated POST)
+app.get('/api/site-settings', async (req, res, next) => {
+  try {
+    const [rows] = await pool.query('SELECT logo_url FROM site_settings WHERE id = 1 LIMIT 1')
+    const logo = rows && rows[0] ? rows[0].logo_url : null
+    return res.json({ logo_url: logo })
+  } catch (err) {
+    next(err)
+  }
+})
+
+app.post('/api/site-settings', async (req, res, next) => {
+  try {
+    const user = await validateAuth(req)
+    if (!user || (!user.isSuperAdmin && !user.isAdmin)) return res.status(401).json({ message: 'No autorizado' })
+
+    const { logo_url } = req.body
+    if (typeof logo_url !== 'string') return res.status(400).json({ message: 'logo_url required' })
+
+    await pool.query('INSERT INTO site_settings (id, logo_url) VALUES (1, :logo_url) ON DUPLICATE KEY UPDATE logo_url = :logo_url', { logo_url })
+
+    return res.json({ logo_url })
+  } catch (err) {
+    next(err)
+  }
+})
 
 const STATUS_OPTIONS = ['Nuevo', 'Contactado', 'En seguimiento', 'Convertido', 'Descartado']
 
