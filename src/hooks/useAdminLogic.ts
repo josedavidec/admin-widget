@@ -332,8 +332,16 @@ export function useAdminLogic() {
           await fetchLeads(data.token)
         }
       } else {
-        setError('Credenciales inválidas')
+        let msg = 'Credenciales inválidas'
+        try {
+          const body = await response.json()
+          if (body && body.message) msg = body.message
+        } catch (e) {
+          // ignore
+        }
+        setError(msg)
         setIsAuthenticated(false)
+        showNotification(msg)
       }
     } catch (err) {
       console.error(err)

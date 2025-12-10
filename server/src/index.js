@@ -4,7 +4,7 @@ import cors from 'cors'
 import helmet from 'helmet'
 import morgan from 'morgan'
 import rateLimit from 'express-rate-limit'
-import { createPool } from 'mysql2/promise'
+import mysql from 'mysql2/promise'
 import { z } from 'zod'
 import multer from 'multer'
 import path from 'path'
@@ -62,7 +62,8 @@ const config = {
   },
 }
 
-const pool = createPool({
+const pool = (mysql && (mysql.createPool || mysql.default?.createPool))
+  ? (mysql.createPool || mysql.default?.createPool)({
   host: config.db.host,
   port: config.db.port,
   user: config.db.user,
@@ -72,7 +73,8 @@ const pool = createPool({
   waitForConnections: true,
   namedPlaceholders: true,
   timezone: 'Z',
-})
+  })
+  : null
 
 // Ensure site_settings table exists (simple key-value row with id=1)
 (async () => {
@@ -183,9 +185,31 @@ app.use(morgan(config.env === 'production' ? 'combined' : 'dev'))
 // Site settings endpoints (public GET, authenticated POST)
 app.get('/api/site-settings', async (req, res, next) => {
   try {
-    const [rows] = await pool.query('SELECT logo_url FROM site_settings WHERE id = 1 LIMIT 1')
-    const logo = rows && rows[0] ? rows[0].logo_url : null
-    return res.json({ logo_url: logo })
+    if (!pool) throw new Error('DB pool not initialized')
+    try {
+      const [rows] = await pool.query('SELECT logo_url FROM site_settings WHERE id = 1 LIMIT 1')
+      const logo = rows && rows[0] ? rows[0].logo_url : null
+      return res.json({ logo_url: logo })
+    } catch (err) {
+      // If table missing, try to create it and return default
+      if (err && err.code === 'ER_NO_SUCH_TABLE') {
+        try {
+          await pool.query(`
+            CREATE TABLE IF NOT EXISTS site_settings (
+              id INT PRIMARY KEY,
+              logo_url VARCHAR(1024) DEFAULT NULL,
+              updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+          `)
+          await pool.query('INSERT INTO site_settings (id, logo_url) VALUES (1, NULL) ON DUPLICATE KEY UPDATE logo_url = logo_url')
+          return res.json({ logo_url: null })
+        } catch (inner) {
+          console.error('[API ERROR] creating site_settings', inner)
+          return res.status(500).json({ message: 'Error interno. Inténtalo más tarde.' })
+        }
+      }
+      throw err
+    }
   } catch (err) {
     next(err)
   }
@@ -198,10 +222,29 @@ app.post('/api/site-settings', async (req, res, next) => {
 
     const { logo_url } = req.body
     if (typeof logo_url !== 'string') return res.status(400).json({ message: 'logo_url required' })
-
-    await pool.query('INSERT INTO site_settings (id, logo_url) VALUES (1, :logo_url) ON DUPLICATE KEY UPDATE logo_url = :logo_url', { logo_url })
-
-    return res.json({ logo_url })
+    if (!pool) throw new Error('DB pool not initialized')
+    try {
+      await pool.query('INSERT INTO site_settings (id, logo_url) VALUES (1, :logo_url) ON DUPLICATE KEY UPDATE logo_url = :logo_url', { logo_url })
+      return res.json({ logo_url })
+    } catch (err) {
+      if (err && err.code === 'ER_NO_SUCH_TABLE') {
+        try {
+          await pool.query(`
+            CREATE TABLE IF NOT EXISTS site_settings (
+              id INT PRIMARY KEY,
+              logo_url VARCHAR(1024) DEFAULT NULL,
+              updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+          `)
+          await pool.query('INSERT INTO site_settings (id, logo_url) VALUES (1, :logo_url) ON DUPLICATE KEY UPDATE logo_url = :logo_url', { logo_url })
+          return res.json({ logo_url })
+        } catch (inner) {
+          console.error('[API ERROR] creating site_settings on POST', inner)
+          return res.status(500).json({ message: 'Error interno. Inténtalo más tarde.' })
+        }
+      }
+      throw err
+    }
   } catch (err) {
     next(err)
   }
