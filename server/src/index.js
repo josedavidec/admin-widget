@@ -2163,29 +2163,25 @@ async function ensureTables() {
   `)
 
   // Ensure columns exist on upgrades where the table was created before emails/social were added
-  try {
-    await pool.query(`ALTER TABLE section_settings ADD COLUMN IF NOT EXISTS emails BOOLEAN DEFAULT TRUE`)
-    await pool.query(`ALTER TABLE section_settings ADD COLUMN IF NOT EXISTS social BOOLEAN DEFAULT TRUE`)
-    await pool.query(`ALTER TABLE section_settings ADD COLUMN IF NOT EXISTS media BOOLEAN DEFAULT TRUE`)
-  } catch (err) {
-    // Ignore - some MySQL versions might not support IF NOT EXISTS on ADD COLUMN
+  // Ensure columns exist on upgrades where the table was created before emails/social/media were added
+  async function ensureColumn(table, column, definition) {
     try {
-      await pool.query(`ALTER TABLE section_settings ADD COLUMN emails BOOLEAN DEFAULT TRUE`)
+      const [[info]] = await pool.query(
+        `SELECT COUNT(*) as cnt FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?`,
+        [config.db.name, table, column]
+      )
+      if (info && info.cnt === 0) {
+        await pool.query(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`)
+      }
     } catch (e) {
-      // If column already exists or cannot be added, just log and continue
-      console.debug('Could not add emails column to section_settings:', e?.message || e)
-    }
-    try {
-      await pool.query(`ALTER TABLE section_settings ADD COLUMN social BOOLEAN DEFAULT TRUE`)
-    } catch (e) {
-      console.debug('Could not add social column to section_settings:', e?.message || e)
-    }
-    try {
-      await pool.query(`ALTER TABLE section_settings ADD COLUMN media BOOLEAN DEFAULT TRUE`)
-    } catch (e) {
-      console.debug('Could not add media column to section_settings:', e?.message || e)
+      // log at debug level but avoid noisy duplicate messages
+      console.debug(`Could not ensure column ${column} on ${table}:`, e?.message || e)
     }
   }
+
+  await ensureColumn('section_settings', 'emails', 'BOOLEAN DEFAULT TRUE')
+  await ensureColumn('section_settings', 'social', 'BOOLEAN DEFAULT TRUE')
+  await ensureColumn('section_settings', 'media', 'BOOLEAN DEFAULT TRUE')
 
   // Initialize section_settings if empty
   const [sectionRows] = await pool.query('SELECT COUNT(*) as count FROM section_settings')
