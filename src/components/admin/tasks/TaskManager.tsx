@@ -81,7 +81,7 @@ export function TaskManager({
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div className="flex items-center gap-4">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Gestión de Tareas</h2>
-          <div className="flex overflow-hidden rounded-lg border border-gray-300 bg-white text-sm font-medium shadow-sm">
+          <div className="flex overflow-hidden rounded-lg border border-gray-300 bg-white text-sm font-medium shadow-sm dark:bg-gray-800 dark:border-gray-700">
             <button
               type="button"
               onClick={() => setViewMode('list')}
@@ -312,8 +312,8 @@ export function TaskManager({
                     <div key={task.id} className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm flex items-center justify-between hover:shadow-md dark:hover:border-gray-600 transition-shadow">
                       <div className="flex items-center gap-4">
                         <div className={`w-2 h-2 rounded-full ${
-                          task.status === 'completed' ? 'bg-green-500' : 
-                          task.status === 'in_progress' ? 'bg-blue-500' : 'bg-gray-300'
+                          task.status === 'completed' ? 'bg-green-500 dark:bg-green-400' : 
+                          task.status === 'in_progress' ? 'bg-blue-500 dark:bg-blue-400' : 'bg-gray-300 dark:bg-gray-500'
                         }`} />
                         <div>
                           <p className={`font-medium ${task.status === 'completed' ? 'text-gray-500 line-through dark:text-gray-400' : 'text-gray-900 dark:text-white'}`}>
@@ -321,7 +321,7 @@ export function TaskManager({
                           </p>
                           <div className="flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400 mt-1">
                             {task.assignedToName && (
-                              <span className="flex items-center gap-1 bg-gray-50 px-1.5 py-0.5 rounded">
+                              <span className="flex items-center gap-1 bg-gray-50 dark:bg-gray-700 px-1.5 py-0.5 rounded">
                                 {task.assignedToPhotoUrl ? (
                                   <img src={task.assignedToPhotoUrl} alt={task.assignedToName} className="w-4 h-4 rounded-full object-cover" />
                                 ) : (
@@ -346,7 +346,7 @@ export function TaskManager({
                         <select
                           value={task.status}
                           onChange={(e) => onUpdateStatus(task.id, e.target.value as Task['status'])}
-                          className="text-xs border-gray-200 rounded bg-gray-50 py-1 px-2"
+                          className="text-xs border border-gray-200 dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-700 dark:text-white py-1 px-2"
                         >
                           <option value="pending">Pendiente</option>
                           <option value="in_progress">En Progreso</option>
