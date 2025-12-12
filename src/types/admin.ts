@@ -65,15 +65,33 @@ export type Task = {
   title: string
   description: string | null
   status: TaskStatus
+  // backward-compatible single-assignee fields
   assignedToId: number | null
   assignedToName: string | null
   assignedToPhotoUrl?: string | null
+  // new multi-assignee support
+  assignedToIds?: number[]
+  assignedToMembers?: { id: number; name: string; photoUrl?: string | null }[]
   brandId: number | null
   brandName: string | null
   brandColor: string | null
   dueDate: string | null
   startDate: string | null
   createdAt: string
+}
+
+export type Subtask = {
+  id: number
+  taskId: number
+  title: string
+  status: TaskStatus
+  createdAt: string
+  updatedAt?: string
+}
+
+// Allow tasks to include nested subtasks in the frontend model
+export type TaskWithSubtasks = Task & {
+  subtasks?: Subtask[]
 }
 
 export type SocialPlatform = 'instagram' | 'tiktok' | 'youtube' | 'linkedin' | 'twitter' | 'facebook'

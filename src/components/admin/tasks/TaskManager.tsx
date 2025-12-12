@@ -1,3 +1,4 @@
+import { useState, useRef } from 'react'
 import { DndContext, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
 import { TaskBoardColumn } from './TaskBoardColumn'
 import { TaskCalendar } from './TaskCalendar'
@@ -13,13 +14,17 @@ type TaskManagerProps = {
   monthFilter: string
   setMonthFilter: (month: string) => void
   filteredTasks: Task[]
-  onCreate: (title: string, assignedToId: number | null, brandId: number | null, dueDate: string | null, startDate: string | null) => void
+  onCreate: (title: string, assignedToIds: number[] | null, brandId: number | null, dueDate: string | null, startDate: string | null) => void
+  onUpdateTask?: (id: number, payload: Partial<{ title: string; assignedToId?: number | null; assignedToIds?: number[] | null; brandId: number | null; dueDate: string | null; startDate: string | null; description?: string }>) => Promise<boolean>
   onUpdateStatus: (id: number, status: Task['status']) => void
-  onAssign: (taskId: number, assignedToId: number | null) => void
+  onAssign: (taskId: number, assignedToIds: number[] | null) => void
   onDelete: (id: number) => void
   onDragEnd: (event: DragEndEvent) => void
   brandFilter: string
   setBrandFilter: (filter: string) => void
+  onCreateSubtask?: (taskId: number, title: string) => Promise<any> | null
+  onUpdateSubtask?: (subtaskId: number, payload: Partial<{ title: string; status: string }>) => Promise<any> | null
+  onDeleteSubtask?: (subtaskId: number) => Promise<boolean> | null
 }
 
 export function TaskManager({
@@ -37,8 +42,37 @@ export function TaskManager({
   onDragEnd,
   brandFilter,
   setBrandFilter
+  , onUpdateTask
+  , onCreateSubtask, onUpdateSubtask, onDeleteSubtask
 }: TaskManagerProps) {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
+  const [editingTaskId, setEditingTaskId] = useState<number | null>(null)
+  const formRef = useRef<HTMLFormElement | null>(null)
+
+  const startEdit = (task: Task) => {
+    setEditingTaskId(task.id)
+    // populate form fields if available
+    const form = formRef.current
+    if (form) {
+      const titleEl = form.elements.namedItem('title') as HTMLInputElement | null
+      const assignedEl = form.elements.namedItem('assignedToIds') as HTMLSelectElement | null
+      const brandEl = form.elements.namedItem('brandId') as HTMLSelectElement | null
+      const dueEl = form.elements.namedItem('dueDate') as HTMLInputElement | null
+      const startEl = form.elements.namedItem('startDate') as HTMLInputElement | null
+      if (titleEl) titleEl.value = task.title || ''
+      if (assignedEl) {
+        // mark selected options
+        const values = (task.assignedToIds && task.assignedToIds.length > 0) ? task.assignedToIds : (task.assignedToId ? [task.assignedToId] : [])
+        for (const opt of Array.from(assignedEl.options)) {
+          opt.selected = values.includes(Number(opt.value))
+        }
+      }
+      if (brandEl) brandEl.value = task.brandId ? String(task.brandId) : ''
+      if (dueEl) dueEl.value = task.dueDate ? task.dueDate.split('T')[0] : ''
+      if (startEl) startEl.value = task.startDate ? task.startDate.split('T')[0] : ''
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
 
   return (
     <div className="space-y-6">
@@ -85,27 +119,40 @@ export function TaskManager({
       <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
         <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">Nueva Tarea</h3>
         <form
-          onSubmit={(e) => {
+          onSubmit={async (e) => {
             e.preventDefault()
             const form = e.currentTarget
             const title = (form.elements.namedItem('title') as HTMLInputElement).value
-            const assignedTo = (form.elements.namedItem('assignedTo') as HTMLSelectElement).value
+            const assignedToEl = (form.elements.namedItem('assignedToIds') as HTMLSelectElement)
+            const assignedTo = assignedToEl
+              ? Array.from(assignedToEl.selectedOptions).map(o => Number(o.value))
+              : []
             const brandId = (form.elements.namedItem('brandId') as HTMLSelectElement).value
             const dueDate = (form.elements.namedItem('dueDate') as HTMLInputElement).value
             const startDate = (form.elements.namedItem('startDate') as HTMLInputElement).value
             
-            if (title.trim()) {
-              onCreate(
-                title.trim(), 
-                assignedTo ? Number(assignedTo) : null, 
-                brandId ? Number(brandId) : null,
-                dueDate || null,
-                startDate || null
-              )
+              if (!title.trim()) return
+
+              if (editingTaskId != null && typeof onUpdateTask === 'function') {
+                await onUpdateTask(editingTaskId, {
+                  title: title.trim(),
+                  assignedToIds: Array.isArray(assignedTo) ? assignedTo : (assignedTo ? [Number(assignedTo)] : []),
+                  brandId: brandId ? Number(brandId) : null,
+                  dueDate: dueDate || null,
+                  startDate: startDate || null,
+                })
+                setEditingTaskId(null)
+              } else if (editingTaskId != null) {
+                // fallback to create if update handler not provided
+                onCreate(title.trim(), Array.isArray(assignedTo) ? assignedTo : (assignedTo ? [Number(assignedTo)] : []), brandId ? Number(brandId) : null, dueDate || null, startDate || null)
+                setEditingTaskId(null)
+              } else {
+                onCreate(title.trim(), Array.isArray(assignedTo) ? assignedTo : (assignedTo ? [Number(assignedTo)] : []), brandId ? Number(brandId) : null, dueDate || null, startDate || null)
+              }
               form.reset()
-            }
           }}
           className="flex flex-col gap-4 md:flex-row md:items-end"
+          ref={formRef}
         >
           <div className="flex-1">
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Título</label>
@@ -132,10 +179,11 @@ export function TaskManager({
           <div className="w-full md:w-48">
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Asignar a</label>
             <select
-              name="assignedTo"
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white dark:bg-gray-700 dark:text-white"
+              name="assignedToIds"
+              multiple
+              size={3}
+              className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white dark:bg-gray-700 dark:text-white text-sm"
             >
-              <option value="">Sin asignar</option>
               {assignmentOptions.map(member => (
                 <option key={member.id} value={member.id}>{member.name}</option>
               ))}
@@ -159,12 +207,27 @@ export function TaskManager({
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
             />
           </div>
-          <button
-            type="submit"
-            className="px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            Crear
-          </button>
+          <div className="flex gap-2">
+            <button
+              type="submit"
+              className="px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              {editingTaskId ? 'Actualizar' : 'Crear'}
+            </button>
+            {editingTaskId && (
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingTaskId(null)
+                  const form = formRef.current
+                  if (form) form.reset()
+                }}
+                className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-300 transition-colors"
+              >
+                Cancelar
+              </button>
+            )}
+          </div>
         </form>
       </div>
 
@@ -221,6 +284,9 @@ export function TaskManager({
                 onDelete={onDelete}
                 onUpdateStatus={onUpdateStatus}
                 onAssign={onAssign}
+                onCreateSubtask={onCreateSubtask}
+                onUpdateSubtask={onUpdateSubtask}
+                onDeleteSubtask={onDeleteSubtask}
               />
             ))}
           </div>
@@ -242,17 +308,17 @@ export function TaskManager({
                 </h3>
                 <div className="grid gap-3">
                   {brandTasks.map(task => (
-                    <div key={task.id} className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm flex items-center justify-between hover:shadow-md transition-shadow">
+                    <div key={task.id} className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm flex items-center justify-between hover:shadow-md dark:hover:border-gray-600 transition-shadow">
                       <div className="flex items-center gap-4">
                         <div className={`w-2 h-2 rounded-full ${
                           task.status === 'completed' ? 'bg-green-500' : 
                           task.status === 'in_progress' ? 'bg-blue-500' : 'bg-gray-300'
                         }`} />
                         <div>
-                          <p className={`font-medium ${task.status === 'completed' ? 'text-gray-500 line-through' : 'text-gray-900'}`}>
+                          <p className={`font-medium ${task.status === 'completed' ? 'text-gray-500 line-through dark:text-gray-400' : 'text-gray-900 dark:text-white'}`}>
                             {task.title}
                           </p>
-                          <div className="flex items-center gap-3 text-xs text-gray-500 mt-1">
+                          <div className="flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400 mt-1">
                             {task.assignedToName && (
                               <span className="flex items-center gap-1 bg-gray-50 px-1.5 py-0.5 rounded">
                                 {task.assignedToPhotoUrl ? (
@@ -266,8 +332,8 @@ export function TaskManager({
                             {task.dueDate && (
                               <span className={`flex items-center gap-1 px-1.5 py-0.5 rounded ${
                                 new Date(task.dueDate) < new Date() && task.status !== 'completed' 
-                                  ? 'bg-red-50 text-red-600' 
-                                  : 'bg-gray-50'
+                                  ? 'bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-400' 
+                                  : 'bg-gray-50 dark:bg-gray-700'
                               }`}>
                                 📅 {formatDateUTC(task.dueDate)}
                               </span>
@@ -285,6 +351,13 @@ export function TaskManager({
                           <option value="in_progress">En Progreso</option>
                           <option value="completed">Completada</option>
                         </select>
+                        <button 
+                          onClick={() => startEdit(task)}
+                          className="text-gray-500 hover:text-blue-600 p-1"
+                          title="Editar tarea"
+                        >
+                          ✎
+                        </button>
                         <button 
                           onClick={() => onDelete(task.id)}
                           className="text-gray-400 hover:text-red-500 p-1"

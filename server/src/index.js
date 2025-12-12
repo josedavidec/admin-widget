@@ -342,6 +342,7 @@ const taskSchema = z.object({
   description: z.string().optional(),
   status: z.enum(['pending', 'in_progress', 'completed']).default('pending'),
   assignedToId: z.number().int().positive().nullable().optional(),
+  assignedToIds: z.array(z.number().int().positive()).optional(),
   brandId: z.number().int().positive().nullable().optional(),
   dueDate: z.string().nullable().optional(),
   startDate: z.string().nullable().optional(),
@@ -1525,15 +1526,50 @@ app.get('/api/tasks', async (req, res, next) => {
       LEFT JOIN brands b ON t.brand_id = b.id
       ORDER BY t.created_at DESC
     `)
-    
+
+    const taskIds = rows.map(r => r.id).filter(Boolean)
+    let assigneesMap = {}
+    if (taskIds.length > 0) {
+      const [assRows] = await pool.query(
+        `SELECT ta.task_id, tm.id as member_id, tm.name as member_name, tm.photo_url as member_photo
+         FROM task_assignees ta
+         JOIN team_members tm ON ta.member_id = tm.id
+         WHERE ta.task_id IN (${taskIds.map(() => '?').join(',')})
+         ORDER BY ta.id ASC`,
+        taskIds,
+      )
+      assRows.forEach(a => {
+        assigneesMap[a.task_id] = assigneesMap[a.task_id] || []
+        assigneesMap[a.task_id].push({ id: a.member_id, name: a.member_name, photoUrl: a.member_photo })
+      })
+    }
+
+    // fetch subtasks for tasks
+    let subtasksMap = {}
+    if (taskIds.length > 0) {
+      const [subRows] = await pool.query(
+        `SELECT id, task_id, title, status, created_at, updated_at FROM subtasks WHERE task_id IN (${taskIds.map(() => '?').join(',')}) ORDER BY id ASC`,
+        taskIds,
+      )
+      subRows.forEach(s => {
+        subtasksMap[s.task_id] = subtasksMap[s.task_id] || []
+        subtasksMap[s.task_id].push({ id: s.id, taskId: s.task_id, title: s.title, status: s.status, createdAt: s.created_at, updatedAt: s.updated_at })
+      })
+    }
+
     res.json(rows.map(row => ({
       id: row.id,
       title: row.title,
       description: row.description,
       status: row.status,
+      // single-assignee compatibility
       assignedToId: row.assigned_to,
       assignedToName: row.assigned_to_name,
       assignedToPhotoUrl: row.assigned_to_photo,
+      // multi-assignees
+      assignedToIds: (assigneesMap[row.id] || []).map(m => m.id),
+      assignedToMembers: assigneesMap[row.id] || [],
+      subtasks: subtasksMap[row.id] || [],
       brandId: row.brand_id,
       brandName: row.brand_name,
       brandColor: row.brand_color,
@@ -1555,14 +1591,17 @@ app.post('/api/tasks', async (req, res, next) => {
 
     const payload = taskSchema.parse(req.body)
 
+    // For compatibility we store first assignee in tasks.assigned_to, and keep a separate join table for multiple assignees
+    const firstAssignee = Array.isArray(payload.assignedToIds) && payload.assignedToIds.length > 0 ? payload.assignedToIds[0] : payload.assignedToId || null
+
     const [result] = await pool.query(
       `INSERT INTO tasks (title, description, status, assigned_to, brand_id, due_date, start_date)
-       VALUES (:title, :description, :status, :assignedToId, :brandId, :dueDate, :startDate)`,
+       VALUES (:title, :description, :status, :assignedTo, :brandId, :dueDate, :startDate)`,
       {
         title: payload.title,
         description: payload.description,
         status: payload.status,
-        assignedToId: payload.assignedToId,
+        assignedTo: firstAssignee,
         brandId: payload.brandId,
         dueDate: payload.dueDate ? toMySQLDateTime(payload.dueDate) : null,
         startDate: payload.startDate ? toMySQLDateTime(payload.startDate) : null,
@@ -1570,6 +1609,16 @@ app.post('/api/tasks', async (req, res, next) => {
     )
 
     const insertedId = result.insertId
+
+    // Persist task_assignees if provided
+    if (Array.isArray(payload.assignedToIds) && payload.assignedToIds.length > 0) {
+      const values = payload.assignedToIds.map(() => '(?, ?)').join(',')
+      const params = []
+      for (const memberId of payload.assignedToIds) {
+        params.push(insertedId, memberId)
+      }
+      await pool.query(`INSERT INTO task_assignees (task_id, member_id) VALUES ${values}`, params)
+    }
     const [rows] = await pool.query(`
       SELECT t.*, tm.name as assigned_to_name, tm.photo_url as assigned_to_photo, b.name as brand_name, b.color as brand_color
       FROM tasks t 
@@ -1579,6 +1628,15 @@ app.post('/api/tasks', async (req, res, next) => {
     `, { id: insertedId })
 
     const row = rows[0]
+    // fetch assignees for the inserted task
+    const [assRows] = await pool.query(
+      `SELECT tm.id as member_id, tm.name as member_name, tm.photo_url as member_photo
+       FROM task_assignees ta JOIN team_members tm ON ta.member_id = tm.id WHERE ta.task_id = :taskId ORDER BY ta.id ASC`,
+      { taskId: insertedId }
+    )
+
+    const assignedMembers = (assRows || []).map(a => ({ id: a.member_id, name: a.member_name, photoUrl: a.member_photo }))
+
     res.status(201).json(row ? {
       id: row.id,
       title: row.title,
@@ -1587,6 +1645,8 @@ app.post('/api/tasks', async (req, res, next) => {
       assignedToId: row.assigned_to,
       assignedToName: row.assigned_to_name,
       assignedToPhotoUrl: row.assigned_to_photo,
+      assignedToIds: assignedMembers.map(m => m.id),
+      assignedToMembers: assignedMembers,
       brandId: row.brand_id,
       brandName: row.brand_name,
       brandColor: row.brand_color,
@@ -1627,7 +1687,15 @@ app.patch('/api/tasks/:id', async (req, res, next) => {
       updates.push('status = :status')
       bindings.status = payload.status
     }
-    if (payload.assignedToId !== undefined) {
+    // Support updating multiple assignees via assignedToIds or single assignedToId for backward compatibility
+    if (payload.assignedToIds !== undefined) {
+      const ids = Array.isArray(payload.assignedToIds) ? payload.assignedToIds : []
+      const first = ids.length > 0 ? ids[0] : null
+      updates.push('assigned_to = :assignedToId')
+      bindings.assignedToId = first
+      // we'll update task_assignees after the main UPDATE
+      bindings._assignedToIds = ids
+    } else if (payload.assignedToId !== undefined) {
       updates.push('assigned_to = :assignedToId')
       bindings.assignedToId = payload.assignedToId
     }
@@ -1652,6 +1720,21 @@ app.patch('/api/tasks/:id', async (req, res, next) => {
       `UPDATE tasks SET ${updates.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = :id`,
       bindings,
     )
+
+    // If assignedToIds was provided, replace entries in task_assignees
+    if (bindings._assignedToIds !== undefined) {
+      const ids = bindings._assignedToIds
+      // remove existing
+      await pool.query('DELETE FROM task_assignees WHERE task_id = :id', { id: taskId })
+      if (Array.isArray(ids) && ids.length > 0) {
+        const values = ids.map(() => '(?, ?)').join(',')
+        const params = []
+        for (const memberId of ids) {
+          params.push(taskId, memberId)
+        }
+        await pool.query(`INSERT INTO task_assignees (task_id, member_id) VALUES ${values}`, params)
+      }
+    }
     const [rows] = await pool.query(`
       SELECT t.*, tm.name as assigned_to_name, tm.photo_url as assigned_to_photo, b.name as brand_name, b.color as brand_color
       FROM tasks t 
@@ -1661,6 +1744,15 @@ app.patch('/api/tasks/:id', async (req, res, next) => {
     `, { id: taskId })
 
     const row = rows[0]
+
+    // fetch assignees for the task
+    const [assRows] = await pool.query(
+      `SELECT tm.id as member_id, tm.name as member_name, tm.photo_url as member_photo
+       FROM task_assignees ta JOIN team_members tm ON ta.member_id = tm.id WHERE ta.task_id = :taskId ORDER BY ta.id ASC`,
+      { taskId }
+    )
+    const assignedMembers = (assRows || []).map(a => ({ id: a.member_id, name: a.member_name, photoUrl: a.member_photo }))
+
     res.json(row ? {
       id: row.id,
       title: row.title,
@@ -1669,6 +1761,8 @@ app.patch('/api/tasks/:id', async (req, res, next) => {
       assignedToId: row.assigned_to,
       assignedToName: row.assigned_to_name,
       assignedToPhotoUrl: row.assigned_to_photo,
+      assignedToIds: assignedMembers.map(m => m.id),
+      assignedToMembers: assignedMembers,
       brandId: row.brand_id,
       brandName: row.brand_name,
       brandColor: row.brand_color,
@@ -1678,6 +1772,66 @@ app.patch('/api/tasks/:id', async (req, res, next) => {
     } : null)
   } catch (error) {
     next(error)
+  }
+})
+
+// Subtasks endpoints
+app.post('/api/tasks/:id/subtasks', async (req, res, next) => {
+  try {
+    const taskId = Number.parseInt(req.params.id, 10)
+    if (!Number.isInteger(taskId) || taskId <= 0) return res.status(400).json({ message: 'Identificador inválido' })
+    const user = await validateAuth(req)
+    if (!user) return res.status(401).json({ message: 'No autorizado' })
+    const title = String(req.body.title || '').trim()
+    if (!title) return res.status(400).json({ message: 'Título requerido' })
+    const [result] = await pool.query('INSERT INTO subtasks (task_id, title) VALUES (:taskId, :title)', { taskId, title })
+    const insertedId = result.insertId
+    const [rows] = await pool.query('SELECT id, task_id, title, status, created_at, updated_at FROM subtasks WHERE id = :id LIMIT 1', { id: insertedId })
+    const s = rows[0]
+    res.status(201).json(s)
+  } catch (err) {
+    next(err)
+  }
+})
+
+app.patch('/api/subtasks/:id', async (req, res, next) => {
+  try {
+    const id = Number.parseInt(req.params.id, 10)
+    if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ message: 'Identificador inválido' })
+    const user = await validateAuth(req)
+    if (!user) return res.status(401).json({ message: 'No autorizado' })
+    const title = req.body.title !== undefined ? String(req.body.title).trim() : undefined
+    const status = req.body.status !== undefined ? String(req.body.status) : undefined
+    const updates = []
+    const bindings = { id }
+    if (title !== undefined) {
+      updates.push('title = :title')
+      bindings.title = title
+    }
+    if (status !== undefined) {
+      updates.push('status = :status')
+      bindings.status = status
+    }
+    if (updates.length === 0) return res.status(400).json({ message: 'Sin cambios' })
+    await pool.query(`UPDATE subtasks SET ${updates.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = :id`, bindings)
+    const [rows] = await pool.query('SELECT id, task_id, title, status, created_at, updated_at FROM subtasks WHERE id = :id LIMIT 1', { id })
+    res.json(rows[0] || null)
+  } catch (err) {
+    next(err)
+  }
+})
+
+app.delete('/api/subtasks/:id', async (req, res, next) => {
+  try {
+    const id = Number.parseInt(req.params.id, 10)
+    if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ message: 'Identificador inválido' })
+    const user = await validateAuth(req)
+    if (!user) return res.status(401).json({ message: 'No autorizado' })
+    const [result] = await pool.query('DELETE FROM subtasks WHERE id = :id', { id })
+    if (result.affectedRows === 0) return res.status(404).json({ message: 'Subtarea no encontrada' })
+    res.json({ message: 'Subtarea eliminada' })
+  } catch (err) {
+    next(err)
   }
 })
 
@@ -2312,6 +2466,31 @@ async function ensureTables() {
       updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       FOREIGN KEY (assigned_to) REFERENCES team_members(id) ON DELETE SET NULL,
       FOREIGN KEY (brand_id) REFERENCES brands(id) ON DELETE SET NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  `)
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS task_assignees (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      task_id INT NOT NULL,
+      member_id INT NOT NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE KEY uq_task_member (task_id, member_id),
+      FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
+      FOREIGN KEY (member_id) REFERENCES team_members(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  `)
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS subtasks (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      task_id INT NOT NULL,
+      title VARCHAR(255) NOT NULL,
+      status ENUM('pending','in_progress','completed') NOT NULL DEFAULT 'pending',
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
+      INDEX idx_task_id (task_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
   `)
 

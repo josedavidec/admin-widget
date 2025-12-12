@@ -8,10 +8,13 @@ type TaskBoardColumnProps = {
   assignmentOptions: TeamMember[]
   onDelete: (taskId: number) => void
   onUpdateStatus: (taskId: number, status: Task['status']) => void
-  onAssign: (taskId: number, memberId: number | null) => void
+  onAssign: (taskId: number, memberIds: number[] | null) => void
+  onCreateSubtask?: (taskId: number, title: string) => Promise<any> | null
+  onUpdateSubtask?: (subtaskId: number, payload: Partial<{ title: string; status: string }>) => Promise<any> | null
+  onDeleteSubtask?: (subtaskId: number) => Promise<boolean> | null
 }
 
-export function TaskBoardColumn({ status, tasks, assignmentOptions, onDelete, onUpdateStatus, onAssign }: TaskBoardColumnProps) {
+export function TaskBoardColumn({ status, tasks, assignmentOptions, onDelete, onUpdateStatus, onAssign, onCreateSubtask, onUpdateSubtask, onDeleteSubtask }: TaskBoardColumnProps) {
   const { setNodeRef, isOver } = useDroppable({ id: `column-${status}`, data: { type: 'column', status } })
 
   return (
@@ -34,6 +37,9 @@ export function TaskBoardColumn({ status, tasks, assignmentOptions, onDelete, on
             onDelete={onDelete}
             onUpdateStatus={onUpdateStatus}
             onAssign={onAssign}
+            onCreateSubtask={onCreateSubtask}
+            onUpdateSubtask={onUpdateSubtask}
+            onDeleteSubtask={onDeleteSubtask}
           />
         ))}
       </div>

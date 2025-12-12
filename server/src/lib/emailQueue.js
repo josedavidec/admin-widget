@@ -1,7 +1,8 @@
 import { Queue } from 'bullmq'
 
 const redisConnection = {
-  host: process.env.REDIS_HOST || '127.0.0.1',
+  // In Docker Compose the Redis service is reachable at 'redis'
+  host: process.env.REDIS_HOST || 'redis',
   port: Number(process.env.REDIS_PORT || 6379),
 }
 

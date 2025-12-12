@@ -1400,7 +1400,7 @@ export function useAdminLogic() {
     }
   }, [activeTab, token, fetchLeads, fetchTasks, fetchBrands, fetchTeamMembers, fetchBlogPosts])
 
-  const handleCreateTask = async (title: string, assignedToId: number | null, brandId: number | null, dueDate: string | null, startDate: string | null) => {
+  const handleCreateTask = async (title: string, assignedToIds: number[] | null, brandId: number | null, dueDate: string | null, startDate: string | null) => {
     if (!token) return
 
         try {
@@ -1410,7 +1410,7 @@ export function useAdminLogic() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify({ title, assignedToId, brandId, dueDate, startDate }),
+        body: JSON.stringify({ title, assignedToIds, brandId, dueDate, startDate }),
       })
       if (!response.ok) throw new Error('Error al crear tarea')
       const newTask = await response.json()
@@ -1461,23 +1461,143 @@ export function useAdminLogic() {
     }
   }
 
-  const handleAssignTask = async (taskId: number, assignedToId: number | null) => {
+  const handleUpdateTask = async (id: number, payload: Partial<{ title: string; assignedToId?: number | null; assignedToIds?: number[] | null; brandId: number | null; dueDate: string | null; startDate: string | null; description?: string }>) => {
+    if (!token) return false
+    try {
+      const response = await fetch(`/api/tasks/${id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      })
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}))
+        throw new Error(err.message || 'Error al actualizar tarea')
+      }
+      const updated = await response.json()
+      setTasks(prev => prev.map(t => t.id === id ? updated : t))
+      showNotification('Tarea actualizada')
+      return true
+    } catch (err) {
+      console.error(err)
+      showNotification('No se pudo actualizar la tarea')
+      return false
+    }
+  }
+
+  const handleAssignTask = async (taskId: number, assignedToIds: number[] | null) => {
     if (!token) return
 
-    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, assignedToId } : t))
+    // Update both single-assignee compatibility and multi-assignee members list optimistically
+    setTasks(prev => prev.map(t => {
+      if (t.id !== taskId) return t
+      const first = Array.isArray(assignedToIds) && assignedToIds.length > 0 ? assignedToIds[0] : null
+      const members = Array.isArray(assignedToIds) && assignedToIds.length > 0
+        ? teamMembers.filter(m => assignedToIds!.includes(m.id)).map(m => ({ id: m.id, name: m.name, photoUrl: m.photoUrl }))
+        : []
+      return { ...t, assignedToId: first, assignedToIds: assignedToIds ?? [], assignedToMembers: members }
+    }))
 
-        try {
+    try {
       await fetch(`/api/tasks/${taskId}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify({ assignedToId }),
+        body: JSON.stringify({ assignedToIds: assignedToIds ?? [] }),
       })
     } catch (err) {
       console.error(err)
       showNotification('Error al asignar tarea')
+    }
+  }
+
+  const handleCreateSubtask = async (taskId: number, title: string) => {
+    if (!token) return null
+    const tempId = -Date.now()
+    // optimistic
+    setTasks(prev => prev.map(t => {
+      if (t.id !== taskId) return t
+      const subt = (t as any).subtasks ? [...(t as any).subtasks] : []
+      subt.push({ id: tempId, taskId, title, status: 'pending', createdAt: new Date().toISOString() })
+      return { ...t, subtasks: subt }
+    }))
+
+    try {
+      const res = await fetch(`/api/tasks/${taskId}/subtasks`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ title })
+      })
+      if (!res.ok) throw new Error('Error al crear subtarea')
+      const created = await res.json()
+      setTasks(prev => prev.map(t => {
+        if (t.id !== taskId) return t
+        const subs = ((t as any).subtasks || []).filter((s: any) => s.id !== tempId)
+        subs.push({ id: created.id, taskId: created.task_id || taskId, title: created.title, status: created.status, createdAt: created.created_at, updatedAt: created.updated_at })
+        return { ...t, subtasks: subs }
+      }))
+      return created
+    } catch (err) {
+      console.error(err)
+      showNotification('No se pudo crear la subtarea')
+      // rollback optimistic
+      setTasks(prev => prev.map(t => {
+        if (t.id !== taskId) return t
+        return { ...t, subtasks: ((t as any).subtasks || []).filter((s: any) => s.id !== tempId) }
+      }))
+      return null
+    }
+  }
+
+  const handleUpdateSubtask = async (subtaskId: number, payload: Partial<{ title: string; status: string }>) => {
+    if (!token) return null
+    // optimistic update
+    setTasks(prev => prev.map(t => {
+      const subs = ((t as any).subtasks || []).map((s: any) => s.id === subtaskId ? { ...s, ...payload } : s)
+      return { ...t, subtasks: subs }
+    }))
+    try {
+      const res = await fetch(`/api/subtasks/${subtaskId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify(payload)
+      })
+      if (!res.ok) throw new Error('Error al actualizar subtarea')
+      const updated = await res.json()
+      // ensure final state matches server
+      setTasks(prev => prev.map(t => ({ ...t, subtasks: ((t as any).subtasks || []).map((s: any) => s.id === subtaskId ? { id: updated.id, taskId: updated.task_id, title: updated.title, status: updated.status, createdAt: updated.created_at, updatedAt: updated.updated_at } : s) })))
+      return updated
+    } catch (err) {
+      console.error(err)
+      showNotification('No se pudo actualizar la subtarea')
+      return null
+    }
+  }
+
+  const handleDeleteSubtask = async (subtaskId: number) => {
+    if (!token) return false
+    // optimistic
+    let removedFromTaskId: number | null = null
+    setTasks(prev => prev.map(t => {
+      const exists = (t as any).subtasks && (t as any).subtasks.find((s: any) => s.id === subtaskId)
+      if (exists) removedFromTaskId = t.id
+      return { ...t, subtasks: ((t as any).subtasks || []).filter((s: any) => s.id !== subtaskId) }
+    }))
+    try {
+      const res = await fetch(`/api/subtasks/${subtaskId}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } })
+      if (!res.ok) throw new Error('Error al eliminar subtarea')
+      showNotification('Subtarea eliminada')
+      return true
+    } catch (err) {
+      console.error(err)
+      showNotification('No se pudo eliminar la subtarea')
+      // rollback: refetch tasks to restore state
+      if (removedFromTaskId) fetchTasks(token)
+      return false
     }
   }
 
@@ -1712,9 +1832,13 @@ export function useAdminLogic() {
     brandsLoading,
     taskAssignmentOptions,
     handleCreateTask,
+    handleUpdateTask,
     handleUpdateTaskStatus,
     handleDeleteTask,
     handleAssignTask,
+    handleCreateSubtask,
+    handleUpdateSubtask,
+    handleDeleteSubtask,
     handleTaskDragEnd,
     handleDragEnd,
     handleCreateBrand,

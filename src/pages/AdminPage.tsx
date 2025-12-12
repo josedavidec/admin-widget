@@ -90,7 +90,11 @@ export default function AdminPage() {
     taskAssignmentOptions,
     handleCreateTask,
     handleUpdateTaskStatus,
+    handleUpdateTask,
     handleAssignTask,
+    handleCreateSubtask,
+    handleUpdateSubtask,
+    handleDeleteSubtask,
     handleTaskDragEnd,
     handleDeleteTask,
     handleCreateBrand,
@@ -725,7 +729,11 @@ export default function AdminPage() {
                   filteredTasks={filteredTasks}
                   onCreate={handleCreateTask}
                   onUpdateStatus={handleUpdateTaskStatus}
+                  onUpdateTask={handleUpdateTask}
                   onAssign={handleAssignTask}
+                  onCreateSubtask={handleCreateSubtask}
+                  onUpdateSubtask={handleUpdateSubtask}
+                  onDeleteSubtask={handleDeleteSubtask}
                   onDelete={handleDeleteTask}
                   onDragEnd={handleTaskDragEnd}
                   brandFilter={brandFilter}

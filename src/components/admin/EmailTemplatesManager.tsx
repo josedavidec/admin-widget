@@ -95,35 +95,7 @@ export default function EmailTemplatesManager({
     if (fetchEmailTemplates) await fetchEmailTemplates()
   }
 
-  const handleSendTest = async (template: EmailTemplate) => {
-    if (!testEmail) return alert('Ingresa un correo de prueba')
-    if (sendEmail) {
-      if (template.id) {
-        await sendEmail({ to: testEmail, templateId: template.id })
-      } else {
-        await sendEmail({ to: testEmail, subject: template.subject, body: template.body })
-      }
-    }
-    alert('Enviado (o registrado en logs si SMTP no configurado)')
-  }
-
-  const handleSchedule = async (template: EmailTemplate) => {
-    if (!scheduleAt) return alert('Selecciona fecha/hora')
-    if (scheduleEmail) {
-      if (template.id) {
-        await scheduleEmail({ to: testEmail || '', templateId: template.id, sendAt: scheduleAt })
-      } else {
-        await scheduleEmail({ to: testEmail || '', subject: template.subject, body: template.body, sendAt: scheduleAt })
-      }
-    }
-    alert('Programado')
-  }
-
-  const extractPlaceholders = (html?: string) => {
-    if (!html) return [] as string[]
-    const matches = html.match(/{{\s*([^}]+?)\s*}}/g) || []
-    return Array.from(new Set(matches.map((m) => m.replace(/{{\s*|\s*}}/g, ''))))
-  }
+  
 
   // Common lead fields available for templates
   const leadVariables = [
@@ -239,6 +211,7 @@ export default function EmailTemplatesManager({
                       }
                     }}
                     className="px-3 py-1 bg-indigo-600 text-white rounded-md shadow-sm hover:bg-indigo-700 text-sm"
+                  disabled={sending}
                   >
                     Vista previa
                   </button>
@@ -248,27 +221,34 @@ export default function EmailTemplatesManager({
                       if (!confirm('Enviar a leads que coincidan con este filtro?')) return
                       try {
                         setSending(true)
-                        const token = localStorage.getItem('auth_token')
                         const leadFilter: any = {}
                         if (filterStatus) leadFilter.status = filterStatus
                         if (filterAssignedTo) leadFilter.assignedTo = filterAssignedTo
                         if (filterTags && Array.isArray(filterTags) && filterTags.length > 0) leadFilter.tags = filterTags
                         if (filterIds) leadFilter.ids = filterIds.split(',').map(s => Number(s.trim())).filter(Boolean)
 
-                        const res = await fetch('/api/email/send', {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-                          body: JSON.stringify({ templateId: t.id, leadFilter })
-                        })
-                        const data = await res.json()
-                        if (!res.ok) return alert(data?.message || 'Error al enviar')
-                        alert('Envío iniciado. Resultados: ' + (Array.isArray(data.results) ? data.results.length : 'ok'))
+                        if (sendEmail) {
+                          // use provided helper if available
+                          await sendEmail({ to: '', templateId: t.id, variables: { leadFilter } })
+                          alert('Envío solicitado (enqueue o envío directo según configuración)')
+                        } else {
+                          const token = localStorage.getItem('auth_token')
+                          const res = await fetch('/api/email/send', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+                            body: JSON.stringify({ templateId: t.id, leadFilter })
+                          })
+                          const data = await res.json()
+                          if (!res.ok) return alert(data?.message || 'Error al enviar')
+                          alert('Envío iniciado. Resultados: ' + (Array.isArray(data.results) ? data.results.length : 'ok'))
+                        }
                       } catch (err) {
                         console.error(err)
                         alert('Error al enviar')
                       } finally { setSending(false) }
                     }}
                     className="px-3 py-1 bg-green-600 text-white rounded-md shadow-sm hover:bg-green-700 text-sm"
+                  disabled={scheduling}
                   >
                     Enviar a filtro
                   </button>
@@ -279,21 +259,26 @@ export default function EmailTemplatesManager({
                       if (!scheduleAt) return alert('Selecciona fecha/hora para programar')
                       try {
                         setScheduling(true)
-                        const token = localStorage.getItem('auth_token')
                         const leadFilter: any = {}
                         if (filterStatus) leadFilter.status = filterStatus
                         if (filterAssignedTo) leadFilter.assignedTo = filterAssignedTo
                         if (filterTags && Array.isArray(filterTags) && filterTags.length > 0) leadFilter.tags = filterTags
                         if (filterIds) leadFilter.ids = filterIds.split(',').map(s => Number(s.trim())).filter(Boolean)
 
-                        const res = await fetch('/api/email/schedule', {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-                          body: JSON.stringify({ templateId: t.id, leadFilter, sendAt: scheduleAt })
-                        })
-                        const data = await res.json()
-                        if (!res.ok) return alert(data?.message || 'Error al programar')
-                        alert('Programado (' + (Array.isArray(data.created) ? data.created.length + ' jobs' : '1') + ')')
+                        if (scheduleEmail) {
+                          await scheduleEmail({ to: '', templateId: t.id, variables: { leadFilter }, sendAt: scheduleAt })
+                          alert('Programado (en cola)')
+                        } else {
+                          const token = localStorage.getItem('auth_token')
+                          const res = await fetch('/api/email/schedule', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+                            body: JSON.stringify({ templateId: t.id, leadFilter, sendAt: scheduleAt })
+                          })
+                          const data = await res.json()
+                          if (!res.ok) return alert(data?.message || 'Error al programar')
+                          alert('Programado (' + (Array.isArray(data.created) ? data.created.length + ' jobs' : '1') + ')')
+                        }
                       } catch (err) {
                         console.error(err)
                         alert('Error al programar')

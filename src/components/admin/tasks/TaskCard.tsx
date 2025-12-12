@@ -9,10 +9,13 @@ type TaskCardProps = {
   assignmentOptions: TeamMember[]
   onDelete: (taskId: number) => void
   onUpdateStatus: (taskId: number, status: Task['status']) => void
-  onAssign: (taskId: number, memberId: number | null) => void
+  onAssign: (taskId: number, memberIds: number[] | null) => void
+  onCreateSubtask?: (taskId: number, title: string) => Promise<any> | null
+  onUpdateSubtask?: (subtaskId: number, payload: Partial<{ title: string; status: string }>) => Promise<any> | null
+  onDeleteSubtask?: (subtaskId: number) => Promise<boolean> | null
 }
 
-export function TaskCard({ task, assignmentOptions, onDelete, onUpdateStatus, onAssign }: TaskCardProps) {
+export function TaskCard({ task, assignmentOptions, onDelete, onUpdateStatus, onAssign, onCreateSubtask, onUpdateSubtask, onDeleteSubtask }: TaskCardProps) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: `task-${task.id}`, data: { type: 'task', task } })
 
   const style: CSSProperties = {
@@ -59,31 +62,33 @@ export function TaskCard({ task, assignmentOptions, onDelete, onUpdateStatus, on
       
       <div className="flex flex-col gap-2 mt-3">
         <div className="relative">
-          {task.assignedToId && (
-            <div className="absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none z-10">
-              {(() => {
-                const assignedMember = assignmentOptions.find(m => m.id === task.assignedToId)
-                if (assignedMember?.photoUrl) {
-                  return <img src={assignedMember.photoUrl} alt="" className="w-4 h-4 rounded-full object-cover" />
-                }
-                return <span className="text-[10px]">👤</span>
-              })()}
+          <div className="flex items-center gap-2">
+            {/* show avatars for multiple assignees */}
+            <div className="flex -space-x-2">
+              {((task.assignedToMembers && task.assignedToMembers.length > 0) ? task.assignedToMembers : (task.assignedToId ? [{ id: task.assignedToId, name: task.assignedToName || '', photoUrl: task.assignedToPhotoUrl }] : [])).map(member => (
+                <div key={member.id} className="w-6 h-6 rounded-full overflow-hidden border-2 border-white dark:border-gray-800 bg-gray-200">
+                  {member.photoUrl ? <img src={member.photoUrl} alt={member.name} className="w-full h-full object-cover" /> : <span className="text-[10px] block text-center">👤</span>}
+                </div>
+              ))}
             </div>
-          )}
-          <select
-            value={task.assignedToId || ''}
-            onChange={(e) => {
-              const val = e.target.value ? Number(e.target.value) : null
-              onAssign(task.id, val)
-            }}
-            className={`text-xs border-gray-200 dark:border-gray-700 rounded bg-gray-50 dark:bg-gray-700 dark:text-white py-1 w-full ${task.assignedToId ? 'pl-7 pr-2' : 'px-2'}`}
-            onPointerDown={(e) => e.stopPropagation()}
-          >
-            <option value="">Sin asignar</option>
-            {assignmentOptions.map(member => (
-              <option key={member.id} value={member.id}>{member.name}</option>
-            ))}
-          </select>
+
+            <select
+              multiple
+              size={Math.min(4, Math.max(2, assignmentOptions.length))}
+              onChange={(e) => {
+                const selected = Array.from(e.currentTarget.selectedOptions).map(o => Number(o.value))
+                onAssign(task.id, selected.length ? selected : null)
+              }}
+              className={`text-xs border-gray-200 dark:border-gray-700 rounded bg-gray-50 dark:bg-gray-700 dark:text-white py-1 w-full`}
+              onPointerDown={(e) => e.stopPropagation()}
+              value={((task.assignedToIds && task.assignedToIds.length > 0) ? task.assignedToIds.map(String) : (task.assignedToId ? [String(task.assignedToId)] : []))}
+            >
+              <option value="">Sin asignar</option>
+              {assignmentOptions.map(member => (
+                <option key={member.id} value={member.id}>{member.name}</option>
+              ))}
+            </select>
+          </div>
         </div>
 
         <select
@@ -102,6 +107,52 @@ export function TaskCard({ task, assignmentOptions, onDelete, onUpdateStatus, on
         </select>
       </div>
       
+      {/* Subtasks */}
+      <div className="mt-3">
+        {((task as any).subtasks || []).length > 0 && (
+          <ul className="space-y-1 text-sm">
+            {((task as any).subtasks || []).map((s: any) => (
+              <li key={s.id} className="flex items-center justify-between gap-2">
+                <label className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
+                  <input
+                    type="checkbox"
+                    checked={s.status === 'completed'}
+                    onChange={(e) => {
+                      const newStatus = e.currentTarget.checked ? 'completed' : 'pending'
+                      try { (onUpdateSubtask as any)?.(s.id, { status: newStatus }) } catch (err) { console.error(err) }
+                    }}
+                  />
+                  <span className={s.status === 'completed' ? 'line-through text-gray-500' : ''}>{s.title}</span>
+                </label>
+                <div>
+                  <button
+                    onClick={() => (onDeleteSubtask as any)?.(s.id)}
+                    className="text-red-400 hover:text-red-600 text-xs"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+        <div className="mt-2 flex gap-2">
+          <input placeholder="Agregar subtarea" className="flex-1 text-sm px-2 py-1 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 dark:text-white" id={`subtask-input-${task.id}`} />
+          <button
+            onClick={() => {
+              const el = document.getElementById(`subtask-input-${task.id}`) as HTMLInputElement | null
+              const val = el?.value?.trim()
+              if (!val) return
+              ;(onCreateSubtask as any)?.(task.id, val)
+              if (el) el.value = ''
+            }}
+            className="px-2 py-1 bg-gray-100 dark:bg-gray-700 text-sm rounded"
+          >
+            +
+          </button>
+        </div>
+      </div>
+
       <div className="mt-2 flex justify-between items-center text-[10px] text-gray-400 dark:text-gray-500">
         <span>
           {task.dueDate ? `Vence: ${formatDateUTC(task.dueDate)}` : ''}
