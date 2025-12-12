@@ -62,10 +62,19 @@ export function TaskManager({
       const startEl = form.elements.namedItem('startDate') as HTMLInputElement | null
       if (titleEl) titleEl.value = task.title || ''
       if (assignedEl) {
-        // mark selected options
+        // mark selected options (for select multiple)
         const values = (task.assignedToIds && task.assignedToIds.length > 0) ? task.assignedToIds : (task.assignedToId ? [task.assignedToId] : [])
         for (const opt of Array.from(assignedEl.options)) {
           opt.selected = values.includes(Number(opt.value))
+        }
+      } else {
+        // mark checkboxes if present
+        try {
+          const boxes = Array.from(form.querySelectorAll<HTMLInputElement>('input[name="assignedToIds"]'))
+          const values = (task.assignedToIds && task.assignedToIds.length > 0) ? task.assignedToIds : (task.assignedToId ? [task.assignedToId] : [])
+          boxes.forEach(b => { b.checked = values.includes(Number(b.value)) })
+        } catch (err) {
+          // ignore
         }
       }
       if (brandEl) brandEl.value = task.brandId ? String(task.brandId) : ''
@@ -121,37 +130,43 @@ export function TaskManager({
         <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">Nueva Tarea</h3>
         <form
           onSubmit={async (e) => {
-            e.preventDefault()
-            const form = e.currentTarget
-            const title = (form.elements.namedItem('title') as HTMLInputElement).value
-            const assignedToEl = (form.elements.namedItem('assignedToIds') as HTMLSelectElement)
-            const assignedTo = assignedToEl
-              ? Array.from(assignedToEl.selectedOptions).map(o => Number(o.value))
-              : []
-            const brandId = (form.elements.namedItem('brandId') as HTMLSelectElement).value
-            const dueDate = (form.elements.namedItem('dueDate') as HTMLInputElement).value
-            const startDate = (form.elements.namedItem('startDate') as HTMLInputElement).value
-            
-              if (!title.trim()) return
-
-              if (editingTaskId != null && typeof onUpdateTask === 'function') {
-                await onUpdateTask(editingTaskId, {
-                  title: title.trim(),
-                  assignedToIds: Array.isArray(assignedTo) ? assignedTo : (assignedTo ? [Number(assignedTo)] : []),
-                  brandId: brandId ? Number(brandId) : null,
-                  dueDate: dueDate || null,
-                  startDate: startDate || null,
-                })
-                setEditingTaskId(null)
-              } else if (editingTaskId != null) {
-                // fallback to create if update handler not provided
-                onCreate(title.trim(), Array.isArray(assignedTo) ? assignedTo : (assignedTo ? [Number(assignedTo)] : []), brandId ? Number(brandId) : null, dueDate || null, startDate || null)
-                setEditingTaskId(null)
+              e.preventDefault()
+              const form = e.currentTarget
+              const title = (form.elements.namedItem('title') as HTMLInputElement).value
+              // collect assignedToIds from either a select[multiple] or checkbox inputs named 'assignedToIds'
+              let assignedTo: number[] = []
+              const assignedSelect = form.elements.namedItem('assignedToIds') as HTMLSelectElement | null
+              if (assignedSelect && 'selectedOptions' in assignedSelect) {
+                assignedTo = Array.from(assignedSelect.selectedOptions).map(o => Number(o.value))
               } else {
-                onCreate(title.trim(), Array.isArray(assignedTo) ? assignedTo : (assignedTo ? [Number(assignedTo)] : []), brandId ? Number(brandId) : null, dueDate || null, startDate || null)
+                const checked = Array.from(form.querySelectorAll<HTMLInputElement>('input[name="assignedToIds"]:checked'))
+                assignedTo = checked.map(c => Number(c.value))
               }
-              form.reset()
-          }}
+              const brandId = (form.elements.namedItem('brandId') as HTMLSelectElement).value
+              const dueDate = (form.elements.namedItem('dueDate') as HTMLInputElement).value
+              const startDate = (form.elements.namedItem('startDate') as HTMLInputElement).value
+            
+                if (!title.trim()) return
+
+                if (editingTaskId != null && typeof onUpdateTask === 'function') {
+                  await onUpdateTask(editingTaskId, {
+                    title: title.trim(),
+                    assignedToIds: Array.isArray(assignedTo) ? assignedTo : (assignedTo ? [Number(assignedTo)] : []),
+                    brandId: brandId ? Number(brandId) : null,
+                    dueDate: dueDate || null,
+                    startDate: startDate || null,
+                  })
+                  setEditingTaskId(null)
+                } else if (editingTaskId != null) {
+                  // fallback to create if update handler not provided
+                  onCreate(title.trim(), Array.isArray(assignedTo) ? assignedTo : (assignedTo ? [Number(assignedTo)] : []), brandId ? Number(brandId) : null, dueDate || null, startDate || null)
+                  setEditingTaskId(null)
+                } else {
+                  onCreate(title.trim(), Array.isArray(assignedTo) ? assignedTo : (assignedTo ? [Number(assignedTo)] : []), brandId ? Number(brandId) : null, dueDate || null, startDate || null)
+                }
+                // reset checkboxes/selects properly
+                try { form.reset() } catch (err) {}
+            }}
           className="flex flex-col gap-4 md:flex-row md:items-end"
           ref={formRef}
         >
@@ -179,16 +194,14 @@ export function TaskManager({
           </div>
           <div className="w-full md:w-48">
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Asignar a</label>
-            <select
-              name="assignedToIds"
-              multiple
-              size={3}
-              className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white dark:bg-gray-700 dark:text-white text-sm"
-            >
+            <div className="max-h-36 overflow-auto border border-gray-200 dark:border-gray-700 rounded px-2 py-1 bg-white dark:bg-gray-700 text-sm">
               {assignmentOptions.map(member => (
-                <option key={member.id} value={member.id}>{member.name}</option>
+                <label key={member.id} className="flex items-center gap-2 mb-1">
+                  <input name="assignedToIds" type="checkbox" value={String(member.id)} className="mr-1" />
+                  <span className="text-xs text-gray-700 dark:text-gray-200 truncate">{member.name}</span>
+                </label>
               ))}
-            </select>
+            </div>
           </div>
           <div className="w-full md:w-40">
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Inicio</label>

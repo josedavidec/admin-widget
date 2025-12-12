@@ -169,22 +169,33 @@ export function TaskCard({ task, assignmentOptions, onDelete, onUpdateStatus, on
               ))}
             </div>
 
-            <select
-              multiple
-              size={Math.min(4, Math.max(2, assignmentOptions.length))}
-              onChange={(e) => {
-                const selected = Array.from(e.currentTarget.selectedOptions).map(o => Number(o.value))
-                onAssign(task.id, selected.length ? selected : null)
-              }}
-              className={`text-xs border-gray-200 dark:border-gray-700 rounded bg-gray-50 dark:bg-gray-700 dark:text-white py-1 w-full`}
-              onPointerDown={(e) => e.stopPropagation()}
-              value={((task.assignedToIds && task.assignedToIds.length > 0) ? task.assignedToIds.map(String) : (task.assignedToId ? [String(task.assignedToId)] : []))}
-            >
-              <option value="">Sin asignar</option>
-              {assignmentOptions.map(member => (
-                <option key={member.id} value={member.id}>{member.name}</option>
-              ))}
-            </select>
+            <div className="w-full grid grid-cols-2 gap-2 max-h-36 overflow-auto pr-1">
+              {assignmentOptions.map(member => {
+                const checked = Array.isArray(task.assignedToIds) ? task.assignedToIds.includes(member.id) : (task.assignedToId === member.id)
+                return (
+                  <label key={member.id} className="flex items-center gap-2 text-xs">
+                    <input
+                      type="checkbox"
+                      onPointerDown={(e) => e.stopPropagation()}
+                      checked={checked}
+                      onChange={(e) => {
+                        // compute new selected array
+                        try {
+                          const current = Array.isArray(task.assignedToIds) ? [...task.assignedToIds] : (task.assignedToId ? [task.assignedToId] : [])
+                          const idx = current.indexOf(member.id)
+                          if (e.currentTarget.checked && idx === -1) current.push(member.id)
+                          if (!e.currentTarget.checked && idx !== -1) current.splice(idx, 1)
+                          onAssign(task.id, current.length ? current : null)
+                        } catch (err) {
+                          console.error(err)
+                        }
+                      }}
+                    />
+                    <span className="truncate">{member.name}</span>
+                  </label>
+                )
+              })}
+            </div>
           </div>
         </div>
 
