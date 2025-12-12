@@ -3,9 +3,11 @@ import { DndContext, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
 import type { DragEndEvent } from '@dnd-kit/core'
 import { TaskBoardColumn } from './TaskBoardColumn'
 import { TaskCalendar } from './TaskCalendar'
+import { TaskCard } from './TaskCard'
 import { type Task, type TeamMember, type Brand } from '../../../types/admin'
 import { formatDateUTC } from '../../../utils/adminUtils'
 import Avatar from '../ui/Avatar'
+import { DragOverlay } from '@dnd-kit/core'
 
 type TaskManagerProps = {
   tasks: Task[]
@@ -61,6 +63,17 @@ export function TaskManager({
   const [lastRefreshed, setLastRefreshed] = useState<number | null>(null)
   const refreshIntervalRef = useRef<number | null>(null)
   const REFRESH_INTERVAL_MS = 5000
+
+  const [activeDragId, setActiveDragId] = useState<string | null>(null)
+  const activeTask = activeDragId ? (() => {
+    const m = activeDragId.match(/^task-(\d+)$/)
+    if (!m) return null
+    const id = Number(m[1])
+    return filteredTasks.find(t => t.id === id) || null
+  })() : null
+
+  const [showNewSubtaskFor, setShowNewSubtaskFor] = useState<number | null>(null)
+  const [newSubtaskTexts, setNewSubtaskTexts] = useState<Record<number, string>>({})
 
   useEffect(() => {
     const onDocClick = (e: MouseEvent) => {
@@ -352,7 +365,11 @@ export function TaskManager({
           startDate={monthFilter ? new Date(monthFilter + '-01T12:00:00') : undefined}
         />
       ) : viewMode === 'board' ? (
-        <DndContext sensors={sensors} onDragEnd={onDragEnd}>
+        <DndContext sensors={sensors} onDragEnd={(e) => { setActiveDragId(null); onDragEnd(e) }} onDragStart={(e) => {
+            const id = String(e.active?.id || '')
+            setActiveDragId(id)
+            // no other side-effects here
+        }}>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 h-full overflow-x-auto pb-4">
             {(['pending', 'in_progress', 'completed'] as const).map(status => (
               <TaskBoardColumn
@@ -372,6 +389,21 @@ export function TaskManager({
               />
             ))}
           </div>
+          {/* Drag overlay to show a stable preview while dragging */}
+          {/* Rendered at the root of DndContext */}
+          {/* eslint-disable-next-line @typescript-eslint/no-use-before-define */}
+          <DragOverlay>
+            {activeTask ? (
+              <TaskCard
+                task={activeTask}
+                assignmentOptions={assignmentOptions}
+                onDelete={() => {}}
+                onUpdateStatus={() => {}}
+                onAssign={() => {}}
+                isPreview
+              />
+            ) : null}
+          </DragOverlay>
         </DndContext>
       ) : (
         <div className="space-y-8">
@@ -468,26 +500,53 @@ export function TaskManager({
                         >
                           ✎
                         </button>
-                          <button
-                            onClick={async () => {
-                              try {
-                                const title = window.prompt('Título de la subtarea:')
-                                if (!title || !title.trim()) return
-                                if (typeof onCreateSubtask === 'function') {
-                                  await onCreateSubtask(task.id, title.trim())
-                                } else {
-                                  alert('Función de crear subtarea no disponible')
+                        {showNewSubtaskFor === task.id ? (
+                          <div className="flex items-center gap-2">
+                            <input
+                              value={newSubtaskTexts[task.id] || ''}
+                              onChange={(e) => setNewSubtaskTexts(prev => ({ ...prev, [task.id]: e.currentTarget.value }))}
+                              placeholder="Título de la subtarea"
+                              className="text-sm px-2 py-1 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 dark:text-white"
+                            />
+                            <button
+                              onClick={async () => {
+                                const val = (newSubtaskTexts[task.id] || '').trim()
+                                if (!val) return
+                                try {
+                                  if (typeof onCreateSubtask === 'function') {
+                                    await onCreateSubtask(task.id, val)
+                                  } else {
+                                    alert('Función de crear subtarea no disponible')
+                                  }
+                                } catch (err) {
+                                  console.error(err)
+                                  alert('Error creando subtarea')
                                 }
-                              } catch (err) {
-                                console.error(err)
-                                alert('Error creando subtarea')
-                              }
-                            }}
+                                setNewSubtaskTexts(prev => { const copy = { ...prev }; delete copy[task.id]; return copy })
+                                setShowNewSubtaskFor(null)
+                              }}
+                              className="text-green-600 hover:text-green-800 p-1"
+                              title="Guardar subtarea"
+                            >
+                              ✓
+                            </button>
+                            <button
+                              onClick={() => { setShowNewSubtaskFor(null); setNewSubtaskTexts(prev => { const copy = { ...prev }; delete copy[task.id]; return copy }) }}
+                              className="text-gray-400 hover:text-gray-600 p-1"
+                              title="Cancelar"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => setShowNewSubtaskFor(task.id)}
                             className="text-gray-500 hover:text-green-600 p-1"
                             title="Añadir subtarea"
                           >
                             ＋
                           </button>
+                        )}
                         <button 
                           onClick={() => onDelete(task.id)}
                           className="text-gray-400 hover:text-red-500 p-1"

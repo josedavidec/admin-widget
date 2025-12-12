@@ -16,12 +16,18 @@ type TaskCardProps = {
   onCreateSubtask?: (taskId: number, title: string) => Promise<any> | null
   onUpdateSubtask?: (subtaskId: number, payload: Partial<{ title: string; status: string }>) => Promise<any> | null
   onDeleteSubtask?: (subtaskId: number) => Promise<boolean> | null
+  isPreview?: boolean
 }
 
-export function TaskCard({ task, assignmentOptions, onDelete, onUpdateStatus, onAssign, onCreateSubtask, onUpdateSubtask, onDeleteSubtask }: TaskCardProps) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: `task-${task.id}`, data: { type: 'task', task } })
+export function TaskCard({ task, assignmentOptions, onDelete, onUpdateStatus, onAssign, onCreateSubtask, onUpdateSubtask, onDeleteSubtask, isPreview }: TaskCardProps) {
+  const dragResult = useDraggable({ id: `task-${task.id}`, data: { type: 'task', task } })
+  const attributes = dragResult.attributes
+  const listeners = dragResult.listeners
+  const setNodeRef = dragResult.setNodeRef
+  const transform = dragResult.transform
+  const isDragging = dragResult.isDragging
 
-  const style: CSSProperties = {
+  const style: CSSProperties = isPreview ? {} : {
     transform: CSS.Transform.toString(transform),
     transition: isDragging ? 'none' : 'transform 150ms ease',
     zIndex: isDragging ? 50 : 'auto',
@@ -127,9 +133,9 @@ export function TaskCard({ task, assignmentOptions, onDelete, onUpdateStatus, on
     <div
       ref={setNodeRef}
       style={style}
-      className={`bg-white dark:bg-gray-800 p-3 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 group cursor-grab ${isDragging ? 'ring-2 ring-blue-200 dark:ring-blue-800' : 'hover:shadow-md dark:hover:border-gray-600'}`}
-      {...listeners}
-      {...attributes}
+      className={`bg-white dark:bg-gray-800 p-3 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 group ${isPreview ? '' : 'cursor-grab'} ${isDragging ? 'ring-2 ring-blue-200 dark:ring-blue-800' : 'hover:shadow-md dark:hover:border-gray-600'}`}
+      {...(listeners || {})}
+      {...(attributes || {})}
     >
       <div className="flex justify-between items-start mb-2">
         <div>
@@ -161,41 +167,13 @@ export function TaskCard({ task, assignmentOptions, onDelete, onUpdateStatus, on
       <div className="flex flex-col gap-2 mt-3">
         <div className="relative">
           <div className="flex items-center gap-2">
-            {/* show avatars for multiple assignees */}
+            {/* show avatars for multiple assignees (only images, tooltip with name) */}
             <div className="flex -space-x-2">
               {((task.assignedToMembers && task.assignedToMembers.length > 0) ? task.assignedToMembers : (task.assignedToId ? [{ id: task.assignedToId, name: task.assignedToName || '', photoUrl: task.assignedToPhotoUrl }] : [])).map(member => (
-                <div key={member.id} className="w-6 h-6 rounded-full overflow-hidden border-2 border-white dark:border-gray-800 bg-gray-200">
-                  <Avatar name={member.name} src={member.photoUrl} size={24} />
+                <div key={member.id} title={member.name} aria-label={member.name} className="w-6 h-6 rounded-full overflow-hidden border-2 border-white dark:border-gray-800 bg-gray-200" >
+                  <Avatar name={member.name} src={member.photoUrl} size={24} alt={member.name} />
                 </div>
               ))}
-            </div>
-
-            <div className="w-full grid grid-cols-2 gap-2 max-h-36 overflow-auto pr-1">
-              {assignmentOptions.map(member => {
-                const checked = Array.isArray(task.assignedToIds) ? task.assignedToIds.includes(member.id) : (task.assignedToId === member.id)
-                return (
-                  <label key={member.id} className="flex items-center gap-2 text-xs">
-                    <input
-                      type="checkbox"
-                      onPointerDown={(e) => e.stopPropagation()}
-                      checked={checked}
-                      onChange={(e) => {
-                        // compute new selected array
-                        try {
-                          const current = Array.isArray(task.assignedToIds) ? [...task.assignedToIds] : (task.assignedToId ? [task.assignedToId] : [])
-                          const idx = current.indexOf(member.id)
-                          if (e.currentTarget.checked && idx === -1) current.push(member.id)
-                          if (!e.currentTarget.checked && idx !== -1) current.splice(idx, 1)
-                          onAssign(task.id, current.length ? current : null)
-                        } catch (err) {
-                          console.error(err)
-                        }
-                      }}
-                    />
-                    <span className="truncate">{member.name}</span>
-                  </label>
-                )
-              })}
             </div>
           </div>
         </div>
