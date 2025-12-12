@@ -377,7 +377,9 @@ const newsletterSchema = z.object({
 
 async function validateAuth(req) {
   const authHeader = req.headers['authorization']
-  const token = authHeader && authHeader.split(' ')[1]
+  // allow passing token in query param for EventSource connections
+  const queryToken = (req.query && req.query.token) ? String(req.query.token) : null
+  const token = (authHeader && authHeader.split(' ')[1]) || queryToken
   if (!token) return null
 
   try {
@@ -401,6 +403,21 @@ async function validateAuth(req) {
     }
   } catch (error) {
     return null
+  }
+}
+
+// Simple SSE broadcaster for tasks updates
+const sseClients = new Set()
+function broadcastTasksUpdate(payload = {}) {
+  const data = JSON.stringify(payload)
+  for (const res of sseClients) {
+    try {
+      res.write(`event: tasks:update\n`)
+      res.write(`data: ${data}\n\n`)
+    } catch (err) {
+      // ignore write errors; closed clients will be removed on 'close'
+      try { res.end() } catch (e) {}
+    }
   }
 }
 
@@ -1512,6 +1529,32 @@ app.post('/api/media/import', async (req, res, next) => {
 })
 
 // Tasks Endpoints
+// Server-Sent Events endpoint for tasks updates
+app.get('/api/tasks/stream', async (req, res, next) => {
+  try {
+    const user = await validateAuth(req)
+    if (!user) return res.status(401).json({ message: 'No autorizado' })
+
+    // set SSE headers
+    res.setHeader('Content-Type', 'text/event-stream')
+    res.setHeader('Cache-Control', 'no-cache')
+    res.setHeader('Connection', 'keep-alive')
+    // CORS is handled globally but ensure allowed
+    res.flushHeaders && res.flushHeaders()
+
+    // send a comment to establish the stream
+    res.write(':ok\n\n')
+
+    sseClients.add(res)
+
+    req.on('close', () => {
+      sseClients.delete(res)
+    })
+  } catch (err) {
+    next(err)
+  }
+})
+
 app.get('/api/tasks', async (req, res, next) => {
   try {
     const user = await validateAuth(req)
@@ -1654,6 +1697,8 @@ app.post('/api/tasks', async (req, res, next) => {
       startDate: row.start_date,
       createdAt: row.created_at
     } : null)
+    // notify SSE clients that tasks changed
+    try { broadcastTasksUpdate({ type: 'task', action: 'created', id: insertedId }) } catch (e) { console.error(e) }
   } catch (error) {
     next(error)
   }
@@ -1770,6 +1815,8 @@ app.patch('/api/tasks/:id', async (req, res, next) => {
       startDate: row.start_date,
       createdAt: row.created_at
     } : null)
+    // notify SSE clients that a task was updated
+    try { broadcastTasksUpdate({ type: 'task', action: 'updated', id: taskId }) } catch (e) { console.error(e) }
   } catch (error) {
     next(error)
   }
@@ -1792,6 +1839,7 @@ app.post('/api/tasks/:id/subtasks', async (req, res, next) => {
     const [rows] = await pool.query('SELECT id, task_id, title, status, position, created_at, updated_at FROM subtasks WHERE id = :id LIMIT 1', { id: insertedId })
     const s = rows[0]
     res.status(201).json(s)
+    try { broadcastTasksUpdate({ type: 'subtask', action: 'created', id: s.id, taskId: s.task_id }) } catch (e) { console.error(e) }
   } catch (err) {
     next(err)
   }
@@ -1824,6 +1872,7 @@ app.patch('/api/subtasks/:id', async (req, res, next) => {
     await pool.query(`UPDATE subtasks SET ${updates.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = :id`, bindings)
     const [rows] = await pool.query('SELECT id, task_id, title, status, position, created_at, updated_at FROM subtasks WHERE id = :id LIMIT 1', { id })
     res.json(rows[0] || null)
+    try { broadcastTasksUpdate({ type: 'subtask', action: 'updated', id }) } catch (e) { console.error(e) }
   } catch (err) {
     next(err)
   }
@@ -1838,6 +1887,7 @@ app.delete('/api/subtasks/:id', async (req, res, next) => {
     const [result] = await pool.query('DELETE FROM subtasks WHERE id = :id', { id })
     if (result.affectedRows === 0) return res.status(404).json({ message: 'Subtarea no encontrada' })
     res.json({ message: 'Subtarea eliminada' })
+    try { broadcastTasksUpdate({ type: 'subtask', action: 'deleted', id }) } catch (e) { console.error(e) }
   } catch (err) {
     next(err)
   }
@@ -1860,8 +1910,8 @@ app.delete('/api/tasks/:id', async (req, res, next) => {
     if (result.affectedRows === 0) {
       return res.status(404).json({ message: 'Tarea no encontrada' })
     }
-
     res.json({ message: 'Tarea eliminada' })
+    try { broadcastTasksUpdate({ type: 'task', action: 'deleted', id: taskId }) } catch (e) { console.error(e) }
   } catch (error) {
     next(error)
   }

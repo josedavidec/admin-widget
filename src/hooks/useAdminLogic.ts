@@ -1400,6 +1400,47 @@ export function useAdminLogic() {
     }
   }, [activeTab, token, fetchLeads, fetchTasks, fetchBrands, fetchTeamMembers, fetchBlogPosts])
 
+  // Server-Sent Events subscription for live task updates
+  useEffect(() => {
+    if (!token) return
+    let es: EventSource | null = null
+    try {
+      // Pass token as query param since EventSource doesn't support custom headers
+      es = new EventSource(`/api/tasks/stream?token=${token}`)
+    } catch (err) {
+      console.error('Could not open EventSource', err)
+      return
+    }
+
+    const onTasksUpdate = (e: MessageEvent) => {
+      try {
+        // data is JSON payload; we simply re-fetch tasks for consistency
+        void fetchTasks(token)
+      } catch (err) {
+        console.error('Error handling tasks update', err)
+      }
+    }
+
+    es.addEventListener('tasks:update', onTasksUpdate)
+    es.addEventListener('message', onTasksUpdate) // fallback
+    es.addEventListener('error', (ev) => {
+      // EventSource will auto-reconnect; log for debugging
+      // If server returns 401/403 the connection will be closed
+      console.debug('SSE error', ev)
+    })
+
+    return () => {
+      try {
+        if (es) {
+          es.removeEventListener('tasks:update', onTasksUpdate)
+          es.close()
+        }
+      } catch (err) {
+        // ignore
+      }
+    }
+  }, [token, fetchTasks])
+
   const handleCreateTask = async (title: string, assignedToIds: number[] | null, brandId: number | null, dueDate: string | null, startDate: string | null) => {
     if (!token) return
 

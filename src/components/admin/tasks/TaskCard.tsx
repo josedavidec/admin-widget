@@ -4,6 +4,7 @@ import type { DragEndEvent } from '@dnd-kit/core'
 import { useSortable, SortableContext, arrayMove } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { type Task, type TeamMember } from '../../../types/admin'
+import Avatar from '../ui/Avatar'
 import { formatDateUTC } from '../../../utils/adminUtils'
 
 type TaskCardProps = {
@@ -164,7 +165,7 @@ export function TaskCard({ task, assignmentOptions, onDelete, onUpdateStatus, on
             <div className="flex -space-x-2">
               {((task.assignedToMembers && task.assignedToMembers.length > 0) ? task.assignedToMembers : (task.assignedToId ? [{ id: task.assignedToId, name: task.assignedToName || '', photoUrl: task.assignedToPhotoUrl }] : [])).map(member => (
                 <div key={member.id} className="w-6 h-6 rounded-full overflow-hidden border-2 border-white dark:border-gray-800 bg-gray-200">
-                  {member.photoUrl ? <img src={member.photoUrl} alt={member.name} className="w-full h-full object-cover" /> : <span className="text-[10px] block text-center">👤</span>}
+                  <Avatar name={member.name} src={member.photoUrl} size={24} />
                 </div>
               ))}
             </div>

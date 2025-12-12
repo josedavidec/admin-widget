@@ -1,10 +1,11 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { DndContext, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
 import type { DragEndEvent } from '@dnd-kit/core'
 import { TaskBoardColumn } from './TaskBoardColumn'
 import { TaskCalendar } from './TaskCalendar'
 import { type Task, type TeamMember, type Brand } from '../../../types/admin'
 import { formatDateUTC } from '../../../utils/adminUtils'
+import Avatar from '../ui/Avatar'
 
 type TaskManagerProps = {
   tasks: Task[]
@@ -21,6 +22,7 @@ type TaskManagerProps = {
   onAssign: (taskId: number, assignedToIds: number[] | null) => void
   onDelete: (id: number) => void
   onDragEnd: (event: DragEndEvent) => void
+  onRefresh?: () => Promise<void> | void
   brandFilter: string
   setBrandFilter: (filter: string) => void
   onCreateSubtask?: (taskId: number, title: string) => Promise<any> | null
@@ -41,6 +43,7 @@ export function TaskManager({
   onAssign,
   onDelete,
   onDragEnd,
+  onRefresh,
   brandFilter,
   setBrandFilter
   , onUpdateTask
@@ -49,6 +52,48 @@ export function TaskManager({
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
   const [editingTaskId, setEditingTaskId] = useState<number | null>(null)
   const formRef = useRef<HTMLFormElement | null>(null)
+  const [creatorAssignedIds, setCreatorAssignedIds] = useState<number[]>([])
+  const [showAssignDropdown, setShowAssignDropdown] = useState(false)
+  const assignDropdownRef = useRef<HTMLDivElement | null>(null)
+  const assignButtonRef = useRef<HTMLButtonElement | null>(null)
+  // enable auto-refresh by default (no visible controls)
+  const [autoRefresh, setAutoRefresh] = useState(true)
+  const [lastRefreshed, setLastRefreshed] = useState<number | null>(null)
+  const refreshIntervalRef = useRef<number | null>(null)
+  const REFRESH_INTERVAL_MS = 5000
+
+  useEffect(() => {
+    const onDocClick = (e: MouseEvent) => {
+      const target = e.target as Node | null
+      if (!showAssignDropdown) return
+      if (assignDropdownRef.current && assignDropdownRef.current.contains(target)) return
+      if (assignButtonRef.current && assignButtonRef.current.contains(target)) return
+      setShowAssignDropdown(false)
+    }
+    document.addEventListener('mousedown', onDocClick)
+    return () => document.removeEventListener('mousedown', onDocClick)
+  }, [showAssignDropdown])
+
+  // polling effect for auto-refresh
+  useEffect(() => {
+    if (!autoRefresh || typeof onRefresh !== 'function') return
+    // start interval
+    refreshIntervalRef.current = window.setInterval(async () => {
+      try {
+        await onRefresh()
+        setLastRefreshed(Date.now())
+      } catch (err) {
+        console.error('Auto-refresh failed', err)
+      }
+    }, REFRESH_INTERVAL_MS)
+
+    return () => {
+      if (refreshIntervalRef.current) {
+        clearInterval(refreshIntervalRef.current)
+        refreshIntervalRef.current = null
+      }
+    }
+  }, [autoRefresh, onRefresh])
 
   const startEdit = (task: Task) => {
     setEditingTaskId(task.id)
@@ -61,18 +106,19 @@ export function TaskManager({
       const dueEl = form.elements.namedItem('dueDate') as HTMLInputElement | null
       const startEl = form.elements.namedItem('startDate') as HTMLInputElement | null
       if (titleEl) titleEl.value = task.title || ''
-      if (assignedEl) {
+      if (assignedEl && (assignedEl as any).options) {
         // mark selected options (for select multiple)
         const values = (task.assignedToIds && task.assignedToIds.length > 0) ? task.assignedToIds : (task.assignedToId ? [task.assignedToId] : [])
-        for (const opt of Array.from(assignedEl.options)) {
+        for (const opt of Array.from((assignedEl as any).options)) {
           opt.selected = values.includes(Number(opt.value))
         }
+        // also sync controlled creatorAssignedIds for the create/edit form
+        setCreatorAssignedIds(values)
       } else {
         // mark checkboxes if present
         try {
-          const boxes = Array.from(form.querySelectorAll<HTMLInputElement>('input[name="assignedToIds"]'))
           const values = (task.assignedToIds && task.assignedToIds.length > 0) ? task.assignedToIds : (task.assignedToId ? [task.assignedToId] : [])
-          boxes.forEach(b => { b.checked = values.includes(Number(b.value)) })
+          setCreatorAssignedIds(values)
         } catch (err) {
           // ignore
         }
@@ -115,13 +161,14 @@ export function TaskManager({
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3">
           <input
             type="month"
             value={monthFilter}
             onChange={(e) => setMonthFilter(e.target.value)}
             className="rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-1.5 text-sm text-gray-900 dark:text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 dark:focus:ring-blue-800"
           />
+          {/* Auto-refresh enabled by default (no visible controls) */}
         </div>
       </div>
 
@@ -133,15 +180,8 @@ export function TaskManager({
               e.preventDefault()
               const form = e.currentTarget
               const title = (form.elements.namedItem('title') as HTMLInputElement).value
-              // collect assignedToIds from either a select[multiple] or checkbox inputs named 'assignedToIds'
-              let assignedTo: number[] = []
-              const assignedSelect = form.elements.namedItem('assignedToIds') as HTMLSelectElement | null
-              if (assignedSelect && 'selectedOptions' in assignedSelect) {
-                assignedTo = Array.from(assignedSelect.selectedOptions).map(o => Number(o.value))
-              } else {
-                const checked = Array.from(form.querySelectorAll<HTMLInputElement>('input[name="assignedToIds"]:checked'))
-                assignedTo = checked.map(c => Number(c.value))
-              }
+              // use controlled state for assigned ids in creator form
+              const assignedTo = Array.isArray(creatorAssignedIds) ? creatorAssignedIds : []
               const brandId = (form.elements.namedItem('brandId') as HTMLSelectElement).value
               const dueDate = (form.elements.namedItem('dueDate') as HTMLInputElement).value
               const startDate = (form.elements.namedItem('startDate') as HTMLInputElement).value
@@ -164,13 +204,15 @@ export function TaskManager({
                 } else {
                   onCreate(title.trim(), Array.isArray(assignedTo) ? assignedTo : (assignedTo ? [Number(assignedTo)] : []), brandId ? Number(brandId) : null, dueDate || null, startDate || null)
                 }
-                // reset checkboxes/selects properly
+                // reset controlled state and form
+                setCreatorAssignedIds([])
+                setShowAssignDropdown(false)
                 try { form.reset() } catch (err) {}
             }}
-          className="flex flex-col gap-4 md:flex-row md:items-end"
+          className="flex flex-col gap-4 md:flex-row md:flex-wrap md:items-end"
           ref={formRef}
         >
-          <div className="flex-1">
+          <div className="flex-1 min-w-0">
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Título</label>
             <input
               name="title"
@@ -180,7 +222,7 @@ export function TaskManager({
               required
             />
           </div>
-          <div className="w-full md:w-48">
+          <div className="w-full md:w-48 min-w-0">
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Marca</label>
             <select
               name="brandId"
@@ -192,18 +234,44 @@ export function TaskManager({
               ))}
             </select>
           </div>
-          <div className="w-full md:w-48">
+          <div className="w-full md:w-48 relative min-w-0">
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Asignar a</label>
-            <div className="max-h-36 overflow-auto border border-gray-200 dark:border-gray-700 rounded px-2 py-1 bg-white dark:bg-gray-700 text-sm">
-              {assignmentOptions.map(member => (
-                <label key={member.id} className="flex items-center gap-2 mb-1">
-                  <input name="assignedToIds" type="checkbox" value={String(member.id)} className="mr-1" />
-                  <span className="text-xs text-gray-700 dark:text-gray-200 truncate">{member.name}</span>
-                </label>
-              ))}
+            <div>
+              <button
+                type="button"
+                ref={assignButtonRef}
+                onClick={() => setShowAssignDropdown(v => !v)}
+                className="w-full text-left px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 flex items-center justify-between"
+              >
+                <span className="text-sm text-gray-700 dark:text-gray-200 truncate">
+                  {creatorAssignedIds.length === 0 ? 'Nadie seleccionado' : `${creatorAssignedIds.length} seleccionado(s)`}
+                </span>
+                <span className="text-xs text-gray-500">▾</span>
+              </button>
+
+              {showAssignDropdown && (
+                <div ref={assignDropdownRef} className="absolute z-50 mt-2 w-full max-h-48 overflow-auto border border-gray-200 dark:border-gray-700 rounded bg-white dark:bg-gray-700 p-2 shadow">
+                  {assignmentOptions.map(member => (
+                    <label key={member.id} className="flex items-center gap-2 mb-1 px-1 py-1 hover:bg-gray-50 dark:hover:bg-gray-600 rounded">
+                      <input
+                        type="checkbox"
+                        checked={creatorAssignedIds.includes(member.id)}
+                        onChange={() => {
+                          setCreatorAssignedIds(prev => {
+                            if (prev.includes(member.id)) return prev.filter(id => id !== member.id)
+                            return [...prev, member.id]
+                          })
+                        }}
+                        className="mr-2"
+                      />
+                      <span className="text-xs text-gray-700 dark:text-gray-200 truncate">{member.name}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
-          <div className="w-full md:w-40">
+          <div className="w-full md:w-40 min-w-0">
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Inicio</label>
             <input
               name="startDate"
@@ -212,7 +280,7 @@ export function TaskManager({
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
             />
           </div>
-          <div className="w-full md:w-40">
+          <div className="w-full md:w-40 min-w-0">
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Vencimiento</label>
             <input
               name="dueDate"
@@ -248,7 +316,7 @@ export function TaskManager({
       {/* Brand Filter */}
       <div className="flex items-center gap-4 bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
         <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Filtrar por marca:</span>
-        <div className="flex gap-2 overflow-x-auto pb-1">
+        <div className="flex gap-2 items-center overflow-x-auto p-1">
           <button
             onClick={() => setBrandFilter('Todos')}
             className={`px-3 py-1 rounded-full text-xs font-medium transition-colors whitespace-nowrap ${
@@ -313,7 +381,7 @@ export function TaskManager({
 
             return (
               <div key={brand.id} className="space-y-3">
-                <h3 className="font-semibold text-gray-800 flex items-center gap-2">
+                <h3 className="font-semibold text-gray-800 dark:text-white flex items-center gap-2">
                   <span className="w-3 h-3 rounded-full" style={{ backgroundColor: brand.color }}></span>
                   {brand.name}
                   <span className="text-xs font-normal text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
@@ -332,17 +400,13 @@ export function TaskManager({
                           <p className={`font-medium ${task.status === 'completed' ? 'text-gray-500 line-through dark:text-gray-400' : 'text-gray-900 dark:text-white'}`}>
                             {task.title}
                           </p>
-                          <div className="flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400 mt-1">
-                            {task.assignedToName && (
-                              <span className="flex items-center gap-1 bg-gray-50 dark:bg-gray-700 px-1.5 py-0.5 rounded">
-                                {task.assignedToPhotoUrl ? (
-                                  <img src={task.assignedToPhotoUrl} alt={task.assignedToName} className="w-4 h-4 rounded-full object-cover" />
-                                ) : (
-                                  <span>👤</span>
-                                )}
-                                {task.assignedToName}
+                          <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 mt-2 flex-wrap">
+                            {((task as any).assignedToMembers && (task as any).assignedToMembers.length > 0 ? (task as any).assignedToMembers : (task.assignedToId ? [{ id: task.assignedToId, name: task.assignedToName || '', photoUrl: task.assignedToPhotoUrl }] : [])).map((m: any) => (
+                              <span key={m.id} className="inline-flex items-center gap-2 bg-gray-50 dark:bg-gray-700 px-2 py-0.5 rounded text-[11px] max-w-[9rem] truncate">
+                                <Avatar name={m.name} src={m.photoUrl} size={16} className="flex-shrink-0" />
+                                <span className="truncate">{m.name}</span>
                               </span>
-                            )}
+                            ))}
                             {task.dueDate && (
                               <span className={`flex items-center gap-1 px-1.5 py-0.5 rounded ${
                                 new Date(task.dueDate) < new Date() && task.status !== 'completed' 
