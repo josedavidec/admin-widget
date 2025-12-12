@@ -1548,13 +1548,13 @@ app.get('/api/tasks', async (req, res, next) => {
     let subtasksMap = {}
     if (taskIds.length > 0) {
       const [subRows] = await pool.query(
-        `SELECT id, task_id, title, status, created_at, updated_at FROM subtasks WHERE task_id IN (${taskIds.map(() => '?').join(',')}) ORDER BY id ASC`,
-        taskIds,
-      )
-      subRows.forEach(s => {
-        subtasksMap[s.task_id] = subtasksMap[s.task_id] || []
-        subtasksMap[s.task_id].push({ id: s.id, taskId: s.task_id, title: s.title, status: s.status, createdAt: s.created_at, updatedAt: s.updated_at })
-      })
+          `SELECT id, task_id, title, status, position, created_at, updated_at FROM subtasks WHERE task_id IN (${taskIds.map(() => '?').join(',')}) ORDER BY position ASC, id ASC`,
+          taskIds,
+        )
+        subRows.forEach(s => {
+          subtasksMap[s.task_id] = subtasksMap[s.task_id] || []
+          subtasksMap[s.task_id].push({ id: s.id, taskId: s.task_id, title: s.title, status: s.status, position: s.position, createdAt: s.created_at, updatedAt: s.updated_at })
+        })
     }
 
     res.json(rows.map(row => ({
@@ -1784,9 +1784,12 @@ app.post('/api/tasks/:id/subtasks', async (req, res, next) => {
     if (!user) return res.status(401).json({ message: 'No autorizado' })
     const title = String(req.body.title || '').trim()
     if (!title) return res.status(400).json({ message: 'Título requerido' })
-    const [result] = await pool.query('INSERT INTO subtasks (task_id, title) VALUES (:taskId, :title)', { taskId, title })
+    // compute next position for this task
+    const [[posRow]] = await pool.query('SELECT COALESCE(MAX(position),0)+1 as pos FROM subtasks WHERE task_id = ?', [taskId])
+    const position = posRow?.pos || 1
+    const [result] = await pool.query('INSERT INTO subtasks (task_id, title, position) VALUES (:taskId, :title, :position)', { taskId, title, position })
     const insertedId = result.insertId
-    const [rows] = await pool.query('SELECT id, task_id, title, status, created_at, updated_at FROM subtasks WHERE id = :id LIMIT 1', { id: insertedId })
+    const [rows] = await pool.query('SELECT id, task_id, title, status, position, created_at, updated_at FROM subtasks WHERE id = :id LIMIT 1', { id: insertedId })
     const s = rows[0]
     res.status(201).json(s)
   } catch (err) {
@@ -1802,6 +1805,7 @@ app.patch('/api/subtasks/:id', async (req, res, next) => {
     if (!user) return res.status(401).json({ message: 'No autorizado' })
     const title = req.body.title !== undefined ? String(req.body.title).trim() : undefined
     const status = req.body.status !== undefined ? String(req.body.status) : undefined
+    const position = req.body.position !== undefined ? Number(req.body.position) : undefined
     const updates = []
     const bindings = { id }
     if (title !== undefined) {
@@ -1812,9 +1816,13 @@ app.patch('/api/subtasks/:id', async (req, res, next) => {
       updates.push('status = :status')
       bindings.status = status
     }
+    if (position !== undefined) {
+      updates.push('position = :position')
+      bindings.position = position
+    }
     if (updates.length === 0) return res.status(400).json({ message: 'Sin cambios' })
     await pool.query(`UPDATE subtasks SET ${updates.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = :id`, bindings)
-    const [rows] = await pool.query('SELECT id, task_id, title, status, created_at, updated_at FROM subtasks WHERE id = :id LIMIT 1', { id })
+    const [rows] = await pool.query('SELECT id, task_id, title, status, position, created_at, updated_at FROM subtasks WHERE id = :id LIMIT 1', { id })
     res.json(rows[0] || null)
   } catch (err) {
     next(err)
@@ -2487,10 +2495,12 @@ async function ensureTables() {
       task_id INT NOT NULL,
       title VARCHAR(255) NOT NULL,
       status ENUM('pending','in_progress','completed') NOT NULL DEFAULT 'pending',
+      position INT NOT NULL DEFAULT 0,
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
-      INDEX idx_task_id (task_id)
+      INDEX idx_task_id (task_id),
+      INDEX idx_task_position (task_id, position)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
   `)
 
@@ -2503,6 +2513,20 @@ async function ensureTables() {
     if (rows[0]?.total === 0) {
       await pool.query(`ALTER TABLE tasks ADD COLUMN ${columnDefinition}`)
     }
+  }
+
+  // Ensure `position` column exists on subtasks for upgrades
+  try {
+    const [posCheck] = await pool.query(
+      `SELECT COUNT(*) AS total FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = :schema AND TABLE_NAME = 'subtasks' AND COLUMN_NAME = 'position'`,
+      { schema: databaseName },
+    )
+    if (posCheck && posCheck[0] && posCheck[0].total === 0) {
+      await pool.query('ALTER TABLE subtasks ADD COLUMN position INT NOT NULL DEFAULT 0')
+    }
+  } catch (err) {
+    // ignore - best effort for older DBs
+    console.warn('Could not ensure subtasks.position column:', err && err.message)
   }
 
   await addTaskColumnIfMissing('brand_id', 'brand_id INT NULL')

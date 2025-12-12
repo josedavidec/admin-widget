@@ -1,5 +1,7 @@
-import { type CSSProperties } from 'react'
-import { useDraggable } from '@dnd-kit/core'
+import { type CSSProperties, useState, useRef, useEffect } from 'react'
+import { useDraggable, DndContext } from '@dnd-kit/core'
+import type { DragEndEvent } from '@dnd-kit/core'
+import { useSortable, SortableContext, arrayMove } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { type Task, type TeamMember } from '../../../types/admin'
 import { formatDateUTC } from '../../../utils/adminUtils'
@@ -23,6 +25,101 @@ export function TaskCard({ task, assignmentOptions, onDelete, onUpdateStatus, on
     transition: isDragging ? 'none' : 'transform 150ms ease',
     zIndex: isDragging ? 50 : 'auto',
     opacity: isDragging ? 0.5 : 1,
+  }
+
+  const [editingSubtaskId, setEditingSubtaskId] = useState<number | null>(null)
+  const [editingValue, setEditingValue] = useState('')
+  const newSubtaskRef = useRef<HTMLInputElement | null>(null)
+  const [newSubtaskText, setNewSubtaskText] = useState('')
+  const [localSubtasks, setLocalSubtasks] = useState<any[]>((task as any).subtasks || [])
+
+  useEffect(() => {
+    setLocalSubtasks((task as any).subtasks || [])
+  }, [task.subtasks])
+
+  const startEditing = (s: any) => {
+    setEditingSubtaskId(s.id)
+    setEditingValue(s.title || '')
+  }
+
+  const finishEditing = async (id: number) => {
+    if (editingValue.trim() === '') {
+      setEditingSubtaskId(null)
+      setEditingValue('')
+      return
+    }
+    try {
+      await (onUpdateSubtask as any)?.(id, { title: editingValue.trim() })
+    } catch (err) {
+      console.error(err)
+    }
+    setEditingSubtaskId(null)
+    setEditingValue('')
+  }
+
+  const moveSubtaskUp = async (idx: number) => {
+    const subs = localSubtasks || []
+    if (idx <= 0 || idx >= subs.length) return
+    const a = subs[idx]
+    const b = subs[idx - 1]
+    const posA = a.position ?? idx
+    const posB = b.position ?? (idx - 1)
+    try {
+      await (onUpdateSubtask as any)?.(a.id, { position: posB })
+      await (onUpdateSubtask as any)?.(b.id, { position: posA })
+      // optimistic local swap
+      setLocalSubtasks(prev => {
+        const copy = [...prev]
+        copy.splice(idx - 1, 2, prev[idx], prev[idx - 1])
+        return copy
+      })
+    } catch (err) {
+      console.error(err)
+    }
+  }
+
+  const moveSubtaskDown = async (idx: number) => {
+    const subs = localSubtasks || []
+    if (idx < 0 || idx >= subs.length - 1) return
+    const a = subs[idx]
+    const b = subs[idx + 1]
+    const posA = a.position ?? idx
+    const posB = b.position ?? (idx + 1)
+    try {
+      await (onUpdateSubtask as any)?.(a.id, { position: posB })
+      await (onUpdateSubtask as any)?.(b.id, { position: posA })
+      setLocalSubtasks(prev => {
+        const copy = [...prev]
+        copy.splice(idx, 2, prev[idx + 1], prev[idx])
+        return copy
+      })
+    } catch (err) {
+      console.error(err)
+    }
+  }
+
+  // DnD handlers for subtasks using @dnd-kit/sortable
+  const handleSubtaskDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event
+    if (!over) return
+    const activeId = Number(active.id)
+    const overId = Number(over.id)
+    const oldIndex = localSubtasks.findIndex(s => s.id === activeId)
+    const newIndex = localSubtasks.findIndex(s => s.id === overId)
+    if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return
+
+    const newOrder = arrayMove(localSubtasks, oldIndex, newIndex)
+    setLocalSubtasks(newOrder)
+
+    // persist new positions (1-based)
+    try {
+      for (let i = 0; i < newOrder.length; i++) {
+        const s = newOrder[i]
+        await (onUpdateSubtask as any)?.(s.id, { position: i + 1 })
+      }
+    } catch (err) {
+      console.error('Error saving subtask order', err)
+    }
   }
 
   return (
@@ -109,42 +206,25 @@ export function TaskCard({ task, assignmentOptions, onDelete, onUpdateStatus, on
       
       {/* Subtasks */}
       <div className="mt-3">
-        {((task as any).subtasks || []).length > 0 && (
-          <ul className="space-y-1 text-sm">
-            {((task as any).subtasks || []).map((s: any) => (
-              <li key={s.id} className="flex items-center justify-between gap-2">
-                <label className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
-                  <input
-                    type="checkbox"
-                    checked={s.status === 'completed'}
-                    onChange={(e) => {
-                      const newStatus = e.currentTarget.checked ? 'completed' : 'pending'
-                      try { (onUpdateSubtask as any)?.(s.id, { status: newStatus }) } catch (err) { console.error(err) }
-                    }}
-                  />
-                  <span className={s.status === 'completed' ? 'line-through text-gray-500' : ''}>{s.title}</span>
-                </label>
-                <div>
-                  <button
-                    onClick={() => (onDeleteSubtask as any)?.(s.id)}
-                    className="text-red-400 hover:text-red-600 text-xs"
-                  >
-                    ✕
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ul>
+        {localSubtasks.length > 0 && (
+          <DndContext onDragEnd={handleSubtaskDragEnd}>
+            <SortableContext items={localSubtasks.map(s => s.id)}>
+              <ul className="space-y-1 text-sm">
+                {localSubtasks.map((s: any, idx: number) => (
+                  <SubtaskRow key={s.id} s={s} idx={idx} onUpdateSubtask={onUpdateSubtask} onDeleteSubtask={onDeleteSubtask} editingSubtaskId={editingSubtaskId} startEditing={startEditing} editingValue={editingValue} setEditingValue={setEditingValue} finishEditing={finishEditing} moveUp={() => moveSubtaskUp(idx)} moveDown={() => moveSubtaskDown(idx)} />
+                ))}
+              </ul>
+            </SortableContext>
+          </DndContext>
         )}
         <div className="mt-2 flex gap-2">
-          <input placeholder="Agregar subtarea" className="flex-1 text-sm px-2 py-1 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 dark:text-white" id={`subtask-input-${task.id}`} />
+          <input ref={newSubtaskRef} placeholder="Agregar subtarea" value={newSubtaskText} onChange={(e) => setNewSubtaskText(e.target.value)} className="flex-1 text-sm px-2 py-1 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 dark:text-white" />
           <button
-            onClick={() => {
-              const el = document.getElementById(`subtask-input-${task.id}`) as HTMLInputElement | null
-              const val = el?.value?.trim()
+            onClick={async () => {
+              const val = newSubtaskText?.trim()
               if (!val) return
-              ;(onCreateSubtask as any)?.(task.id, val)
-              if (el) el.value = ''
+              await (onCreateSubtask as any)?.(task.id, val)
+              setNewSubtaskText('')
             }}
             className="px-2 py-1 bg-gray-100 dark:bg-gray-700 text-sm rounded"
           >
@@ -160,5 +240,49 @@ export function TaskCard({ task, assignmentOptions, onDelete, onUpdateStatus, on
         <span>{new Date(task.createdAt).toLocaleDateString()}</span>
       </div>
     </div>
+  )
+}
+
+function SubtaskRow({ s, idx, onUpdateSubtask, onDeleteSubtask, editingSubtaskId, startEditing, editingValue, setEditingValue, finishEditing, moveUp, moveDown }: any) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: s.id })
+  const style: CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.6 : 1,
+  }
+
+  return (
+    <li ref={setNodeRef} style={style} className="flex items-center justify-between gap-2">
+      <div className="flex items-center gap-2">
+        <input
+          type="checkbox"
+          checked={s.status === 'completed'}
+          onChange={(e) => {
+            const newStatus = e.currentTarget.checked ? 'completed' : 'pending'
+            try { onUpdateSubtask?.(s.id, { status: newStatus }) } catch (err) { console.error(err) }
+          }}
+          className="mr-1"
+        />
+        {editingSubtaskId === s.id ? (
+          <input
+            autoFocus
+            value={editingValue}
+            onChange={(e) => setEditingValue(e.target.value)}
+            onBlur={() => finishEditing(s.id)}
+            onKeyDown={(e) => { if (e.key === 'Enter') finishEditing(s.id) }}
+            className="text-sm px-1 py-0.5 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 dark:text-white"
+          />
+        ) : (
+          <button onClick={() => startEditing(s)} className={`text-left text-xs ${s.status === 'completed' ? 'line-through text-gray-500' : 'text-gray-700 dark:text-white'}`} {...attributes} {...listeners}>
+            {s.title}
+          </button>
+        )}
+      </div>
+      <div className="flex items-center gap-2">
+        <button onClick={moveUp} className="text-xs px-1" title="Subir">↑</button>
+        <button onClick={moveDown} className="text-xs px-1" title="Bajar">↓</button>
+        <button onClick={() => onDeleteSubtask?.(s.id)} className="text-red-400 hover:text-red-600 text-xs" title="Eliminar">✕</button>
+      </div>
+    </li>
   )
 }

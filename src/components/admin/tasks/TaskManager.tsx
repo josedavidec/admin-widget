@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react'
-import { DndContext, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
+import { DndContext, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
+import type { DragEndEvent } from '@dnd-kit/core'
 import { TaskBoardColumn } from './TaskBoardColumn'
 import { TaskCalendar } from './TaskCalendar'
 import { type Task, type TeamMember, type Brand } from '../../../types/admin'

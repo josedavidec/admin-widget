@@ -1537,7 +1537,7 @@ export function useAdminLogic() {
       setTasks(prev => prev.map(t => {
         if (t.id !== taskId) return t
         const subs = ((t as any).subtasks || []).filter((s: any) => s.id !== tempId)
-        subs.push({ id: created.id, taskId: created.task_id || taskId, title: created.title, status: created.status, createdAt: created.created_at, updatedAt: created.updated_at })
+        subs.push({ id: created.id, taskId: created.task_id || taskId, title: created.title, status: created.status, position: created.position, createdAt: created.created_at, updatedAt: created.updated_at })
         return { ...t, subtasks: subs }
       }))
       return created
@@ -1569,7 +1569,7 @@ export function useAdminLogic() {
       if (!res.ok) throw new Error('Error al actualizar subtarea')
       const updated = await res.json()
       // ensure final state matches server
-      setTasks(prev => prev.map(t => ({ ...t, subtasks: ((t as any).subtasks || []).map((s: any) => s.id === subtaskId ? { id: updated.id, taskId: updated.task_id, title: updated.title, status: updated.status, createdAt: updated.created_at, updatedAt: updated.updated_at } : s) })))
+      setTasks(prev => prev.map(t => ({ ...t, subtasks: ((t as any).subtasks || []).map((s: any) => s.id === subtaskId ? { id: updated.id, taskId: updated.task_id, title: updated.title, status: updated.status, position: updated.position, createdAt: updated.created_at, updatedAt: updated.updated_at } : s) })))
       return updated
     } catch (err) {
       console.error(err)

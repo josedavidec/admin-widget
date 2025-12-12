@@ -1,4 +1,5 @@
-import { DndContext, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
+import { DndContext, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
+import type { DragEndEvent } from '@dnd-kit/core'
 import { BoardColumn } from './BoardColumn'
 import { MetricCard } from '../MetricCard'
 import { 

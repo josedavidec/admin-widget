@@ -87,6 +87,7 @@ export type Subtask = {
   status: TaskStatus
   createdAt: string
   updatedAt?: string
+  position?: number
 }
 
 // Allow tasks to include nested subtasks in the frontend model
