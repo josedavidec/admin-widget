@@ -340,6 +340,38 @@ export function TaskManager({
                               </span>
                             )}
                           </div>
+                            {/* Subtasks (vista lista) */}
+                            {Array.isArray((task as any).subtasks) && (task as any).subtasks.length > 0 && (
+                              <ul className="mt-2 space-y-1 text-sm">
+                                {(task as any).subtasks.map((s: any) => (
+                                  <li key={s.id} className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                      <input
+                                        type="checkbox"
+                                        checked={s.status === 'completed'}
+                                        onChange={async (e) => {
+                                          const newStatus = e.currentTarget.checked ? 'completed' : 'pending'
+                                          try { await onUpdateSubtask?.(s.id, { status: newStatus }) } catch (err) { console.error(err) }
+                                        }}
+                                        className="mr-1"
+                                      />
+                                      <span className={`${s.status === 'completed' ? 'line-through text-gray-500' : 'text-gray-700 dark:text-white'}`}>{s.title}</span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <button
+                                        onClick={async () => {
+                                          try { await onDeleteSubtask?.(s.id) } catch (err) { console.error(err) }
+                                        }}
+                                        className="text-red-400 hover:text-red-600 text-xs"
+                                        title="Eliminar subtarea"
+                                      >
+                                        ✕
+                                      </button>
+                                    </div>
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
@@ -359,6 +391,26 @@ export function TaskManager({
                         >
                           ✎
                         </button>
+                          <button
+                            onClick={async () => {
+                              try {
+                                const title = window.prompt('Título de la subtarea:')
+                                if (!title || !title.trim()) return
+                                if (typeof onCreateSubtask === 'function') {
+                                  await onCreateSubtask(task.id, title.trim())
+                                } else {
+                                  alert('Función de crear subtarea no disponible')
+                                }
+                              } catch (err) {
+                                console.error(err)
+                                alert('Error creando subtarea')
+                              }
+                            }}
+                            className="text-gray-500 hover:text-green-600 p-1"
+                            title="Añadir subtarea"
+                          >
+                            ＋
+                          </button>
                         <button 
                           onClick={() => onDelete(task.id)}
                           className="text-gray-400 hover:text-red-500 p-1"
