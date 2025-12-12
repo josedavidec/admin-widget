@@ -94,6 +94,7 @@ export default function AdminPage() {
     handleTaskDragEnd,
     handleDeleteTask,
     handleCreateBrand,
+    handleUpdateBrand,
     handleDeleteBrand,
     currentUser,
     handleChangePassword,
@@ -681,6 +682,7 @@ export default function AdminPage() {
                   brands={brands} 
                   loading={brandsLoading} 
                   onCreate={handleCreateBrand} 
+                  onUpdate={handleUpdateBrand}
                   onDelete={handleDeleteBrand} 
                 />
               ) : activeTab === 'media' ? (

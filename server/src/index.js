@@ -12,6 +12,8 @@ import fs from 'fs'
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import nodemailer from 'nodemailer'
+// Queue helper (BullMQ)
+import { enqueueEmailJobs } from './lib/emailQueue.js'
 import crypto from 'crypto'
 
 const JWT_SECRET = process.env.JWT_SECRET || 'super_secret_jwt_key_change_me'
@@ -656,12 +658,60 @@ app.get('/api/health', async (req, res) => {
 // --- Email templates and sending ---
 function replacePlaceholders(templateStr, variables = {}) {
   if (!templateStr) return ''
-  let out = templateStr
+  let out = String(templateStr)
   try {
-    for (const [key, value] of Object.entries(variables || {})) {
-      const re = new RegExp(`{{\\s*${key}\\s*}}`, 'g')
-      out = out.replace(re, String(value ?? ''))
+    // Helper: search recursively for a simple key inside nested objects
+    const findKeyRecursively = (obj, key, visited = new Set()) => {
+      if (obj == null || typeof obj !== 'object') return undefined
+      if (visited.has(obj)) return undefined
+      visited.add(obj)
+      if (Object.prototype.hasOwnProperty.call(obj, key)) return obj[key]
+      for (const k of Object.keys(obj)) {
+        try {
+          const val = obj[k]
+          if (val && typeof val === 'object') {
+            const found = findKeyRecursively(val, key, visited)
+            if (found !== undefined) return found
+          }
+        } catch (e) {
+          // ignore
+        }
+      }
+      return undefined
     }
+
+    // Replace all placeholders like {{ key }} or {{ nested.key }}
+    out = out.replace(/{{\s*([^}]+?)\s*}}/g, (match, p1) => {
+      const keyPath = p1.trim()
+      const parts = keyPath.split('.')
+      let cur = variables
+      for (const part of parts) {
+        if (cur == null) {
+          // try recursive fallback for simple keys when dot-notation failed
+          if (parts.length === 1) {
+            const found = findKeyRecursively(variables, part)
+            return found == null ? '' : String(found)
+          }
+          return ''
+        }
+        if (Object.prototype.hasOwnProperty.call(cur, part)) {
+          cur = cur[part]
+        } else if (/^\d+$/.test(part) && Array.isArray(cur)) {
+          cur = cur[Number(part)]
+        } else {
+          cur = cur[part] ?? cur[part.toLowerCase()]
+        }
+      }
+      if (cur === undefined || cur === null) {
+        // fallback: if single-part placeholder, search recursively in variables
+        if (parts.length === 1) {
+          const found = findKeyRecursively(variables, parts[0])
+          return found == null ? '' : String(found)
+        }
+        return ''
+      }
+      return String(cur)
+    })
   } catch (e) {
     console.error('Error replacing placeholders', e)
   }
@@ -745,7 +795,69 @@ app.post('/api/email/send', async (req, res) => {
     const user = await validateAuth(req)
     if (!user) return res.status(401).json({ message: 'No autorizado' })
 
-    const { to, templateId, subject, body, variables } = req.body
+    const { to, templateId, subject, body, variables, leadFilter, preview } = req.body
+
+    // If leadFilter provided, send one email per matching lead (or return preview)
+    if (leadFilter) {
+      const where = ['1=1']
+      const params = {}
+      if (leadFilter.status) {
+        where.push('status = :status')
+        params.status = leadFilter.status
+      }
+      if (leadFilter.assignedTo) {
+        where.push('assigned_to = :assignedTo')
+        params.assignedTo = leadFilter.assignedTo
+      }
+      if (leadFilter.tags && Array.isArray(leadFilter.tags) && leadFilter.tags.length > 0) {
+        where.push('JSON_CONTAINS(tags, :tags_json)')
+        params.tags_json = JSON.stringify(leadFilter.tags)
+      }
+      if (leadFilter.ids && Array.isArray(leadFilter.ids) && leadFilter.ids.length > 0) {
+        where.push(`id IN (${leadFilter.ids.map((_, i) => `:id${i}`).join(',')})`)
+        leadFilter.ids.forEach((v, i) => { params[`id${i}`] = v })
+      }
+
+      const q = `SELECT * FROM leads WHERE ${where.join(' AND ')} LIMIT 1000`
+      const [leads] = await pool.query(q, params)
+      if (!Array.isArray(leads) || leads.length === 0) return res.status(400).json({ message: 'No se encontraron leads para el filtro' })
+
+      // Build jobs array to enqueue when not preview.
+      const previewResults = []
+      const jobs = []
+      for (const lead of leads) {
+        const vars = Object.assign({}, variables || {}, { lead })
+
+        let finalSubject = subject || ''
+        let finalBody = body || ''
+
+        if (templateId) {
+          const [trows] = await pool.query('SELECT * FROM email_templates WHERE id = :id LIMIT 1', { id: templateId })
+          const template = trows[0]
+          if (!template) return res.status(400).json({ message: 'Plantilla no encontrada' })
+          finalSubject = replacePlaceholders(template.subject, vars)
+          finalBody = replacePlaceholders(template.body, vars)
+        } else {
+          finalSubject = replacePlaceholders(finalSubject || '', vars)
+          finalBody = replacePlaceholders(finalBody || '', vars)
+        }
+
+        const toEmail = lead.email
+        if (preview) {
+          previewResults.push({ to: toEmail, subject: finalSubject, body: finalBody })
+        } else {
+          jobs.push({ to: toEmail, templateId: templateId || null, subject: finalSubject, body: finalBody, variables: vars, createdBy: user.id })
+        }
+      }
+
+      if (preview) return res.json({ ok: true, results: previewResults })
+
+      // Enqueue jobs to background worker
+      const created = await enqueueEmailJobs(jobs)
+      return res.json({ ok: true, queued: created.length, jobIds: created })
+    }
+
+    // Fallback single recipient
     if (!to) return res.status(400).json({ message: 'Campo "to" requerido' })
 
     let finalSubject = subject
@@ -760,6 +872,10 @@ app.post('/api/email/send', async (req, res) => {
     } else {
       finalSubject = replacePlaceholders(finalSubject || '', variables || {})
       finalBody = replacePlaceholders(finalBody || '', variables || {})
+    }
+
+    if (preview) {
+      return res.json({ ok: true, rendered: { to, subject: finalSubject, body: finalBody } })
     }
 
     if (!process.env.SMTP_HOST) {
@@ -786,11 +902,41 @@ app.post('/api/email/schedule', async (req, res) => {
     const user = await validateAuth(req)
     if (!user) return res.status(401).json({ message: 'No autorizado' })
 
-    const { to, templateId, subject, body, variables, sendAt } = req.body
-    if (!to || !sendAt) return res.status(400).json({ message: 'Campos "to" y "sendAt" son requeridos' })
+    const { to, templateId, subject, body, variables, sendAt, leadFilter } = req.body
+    if (!sendAt) return res.status(400).json({ message: 'Campo "sendAt" es requerido' })
 
     const sendDate = new Date(sendAt)
     if (Number.isNaN(sendDate.getTime())) return res.status(400).json({ message: 'Fecha inválida' })
+
+    // If leadFilter provided, create one scheduled job per lead
+    if (leadFilter) {
+      const where = ['1=1']
+      const params = {}
+      if (leadFilter.status) {
+        where.push('status = :status')
+        params.status = leadFilter.status
+      }
+      if (leadFilter.assignedTo) {
+        where.push('assigned_to = :assignedTo')
+        params.assignedTo = leadFilter.assignedTo
+      }
+      const q = `SELECT * FROM leads WHERE ${where.join(' AND ')} LIMIT 1000`
+      const [leads] = await pool.query(q, params)
+      if (!Array.isArray(leads) || leads.length === 0) return res.status(400).json({ message: 'No se encontraron leads para el filtro' })
+
+      const created = []
+      for (const lead of leads) {
+        const vars = Object.assign({}, variables || {}, { lead })
+        const [result] = await pool.query(
+          'INSERT INTO email_schedules (to_email, template_id, subject, body, variables, send_at, created_by) VALUES (:to_email, :template_id, :subject, :body, :variables, :send_at, :created_by)',
+          { to_email: lead.email, template_id: templateId || null, subject: subject || null, body: body || null, variables: JSON.stringify(vars), send_at: toMySQLDateTime(sendDate), created_by: user.id }
+        )
+        created.push(result.insertId)
+      }
+      return res.json({ ok: true, created })
+    }
+
+    if (!to) return res.status(400).json({ message: 'Campo "to" requerido' })
 
     const [result] = await pool.query(
       'INSERT INTO email_schedules (to_email, template_id, subject, body, variables, send_at, created_by) VALUES (:to_email, :template_id, :subject, :body, :variables, :send_at, :created_by)',
@@ -869,6 +1015,41 @@ app.get('/api/leads', async (req, res, next) => {
     res.json(rows)
   } catch (error) {
     next(error)
+  }
+})
+
+// Provide filter options for email UI (statuses, assignedTo values, tags)
+app.get('/api/email/filters', async (req, res) => {
+  try {
+    const user = await validateAuth(req)
+    if (!user) return res.status(401).json({ message: 'No autorizado' })
+
+    // statuses from constant
+    const statuses = STATUS_OPTIONS
+
+    // assignedTo: distinct assigned_to values from leads
+    const [assignedRows] = await pool.query('SELECT DISTINCT assigned_to FROM leads WHERE assigned_to IS NOT NULL AND assigned_to != ""')
+    const assignedTo = assignedRows.map(r => r.assigned_to).filter(Boolean)
+
+    // tags: gather tags JSON arrays from leads and merge unique
+    const [tagRows] = await pool.query('SELECT tags FROM leads WHERE tags IS NOT NULL LIMIT 1000')
+    const tagSet = new Set()
+    for (const row of tagRows) {
+      try {
+        const tags = typeof row.tags === 'string' ? JSON.parse(row.tags) : row.tags
+        if (Array.isArray(tags)) {
+          for (const t of tags) if (t) tagSet.add(String(t))
+        }
+      } catch (e) {
+        // ignore parse errors
+      }
+    }
+    const tags = Array.from(tagSet)
+
+    res.json({ statuses, assignedTo, tags })
+  } catch (err) {
+    console.error('Error fetching email filters', err)
+    res.status(500).json({ message: 'Error al obtener opciones de filtro' })
   }
 })
 
@@ -1586,6 +1767,62 @@ app.post('/api/brands', async (req, res, next) => {
       delete brand.social_accounts
     }
     res.status(201).json(brand)
+  } catch (error) {
+    next(error)
+  }
+})
+
+app.put('/api/brands/:id', async (req, res, next) => {
+  try {
+    const brandId = Number.parseInt(req.params.id, 10)
+    if (!Number.isInteger(brandId) || brandId <= 0) {
+      return res.status(400).json({ message: 'Identificador inválido' })
+    }
+
+    const user = await validateAuth(req)
+    if (!user) {
+      return res.status(401).json({ message: 'No autorizado' })
+    }
+
+    // validate payload
+    const parsed = brandUpdateSchema.safeParse(req.body)
+    if (!parsed.success) {
+      return res.status(400).json({ message: 'Payload inválido', errors: parsed.error.errors })
+    }
+
+    const { name, color, package: pkg, contactInfo, socialAccounts } = req.body
+
+    const [result] = await pool.query(
+      `UPDATE brands SET name = :name, color = :color, package = :package, contact_info = :contactInfo, social_accounts = :socialAccounts WHERE id = :id`,
+      {
+        id: brandId,
+        name: name ?? null,
+        color: color ?? null,
+        package: pkg ?? null,
+        contactInfo: contactInfo ?? null,
+        socialAccounts: socialAccounts ? JSON.stringify(socialAccounts) : null,
+      }
+    )
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: 'Marca no encontrada' })
+    }
+
+    const [rows] = await pool.query('SELECT * FROM brands WHERE id = :id', { id: brandId })
+    const brand = rows[0]
+    if (brand.social_accounts && typeof brand.social_accounts === 'string') {
+      try {
+        brand.socialAccounts = JSON.parse(brand.social_accounts)
+      } catch (e) {
+        brand.socialAccounts = []
+      }
+      delete brand.social_accounts
+    } else if (brand.social_accounts) {
+      brand.socialAccounts = brand.social_accounts
+      delete brand.social_accounts
+    }
+
+    res.json(brand)
   } catch (error) {
     next(error)
   }

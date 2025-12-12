@@ -1224,6 +1224,30 @@ export function useAdminLogic() {
     }
   }
 
+  const handleUpdateBrand = async (id: number, name: string, color: string, pkg: string, contactInfo: string, socialAccounts?: Array<{ platform: string; username: string; url?: string }>) => {
+    if (!token) return
+    try {
+      const response = await fetch(`/api/brands/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ name, color, package: pkg, contactInfo, socialAccounts: socialAccounts || [] }),
+      })
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}))
+        throw new Error(errData.message || 'Error al actualizar marca')
+      }
+      const updated = await response.json()
+      setBrands(prev => prev.map(b => b.id === id ? updated : b).sort((a, b) => a.name.localeCompare(b.name)))
+      showNotification('Marca actualizada')
+    } catch (err) {
+      console.error(err)
+      showNotification('No se pudo actualizar la marca')
+    }
+  }
+
   const handleDeleteBrand = async (brandId: number) => {
     if (!token) return
 
@@ -1694,6 +1718,7 @@ export function useAdminLogic() {
     handleTaskDragEnd,
     handleDragEnd,
     handleCreateBrand,
+    handleUpdateBrand,
     handleDeleteBrand,
     brandFilter,
     setBrandFilter,
